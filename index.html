@@ -40,37 +40,37 @@
         const proxyUrl = 'https://api.allorigins.win/raw?url=';
         const dataUrl = 'https://ilmateenistus.ee/ilma_andmed/xml/observations.php';
 
-        // Custom color stops exactly from your QGIS ramp (value => #rrggbb)
+        // Fixed color stops using {temp: X, color: '#rrggbb'} objects
         const colorStops = [
-            {-40, '#ff6eff'}, {-38, '#ff46f8'}, {-36, '#f627eb'}, {-35, '#e522de'}, {-33, '#d41dd1'},
-            {-30, '#c318c4'}, {-29, '#b414b9'}, {-28, '#a510ae'}, {-27, '#960ca3'}, {-26, '#870898'},
-            {-25, '#78048d'}, {-24, '#64007f'}, {-23, '#57007f'}, {-22, '#4b007f'}, {-21, '#3e007f'},
-            {-20, '#32007f'}, {-19, '#00287f'}, {-18, '#00327f'}, {-17, '#003c7f'}, {-16, '#00467f'},
-            {-15, '#00528f'}, {-14, '#0062af'}, {-13, '#0072cf'}, {-12, '#0082ef'}, {-11, '#1392ff'},
-            {-10, '#259aff'}, {-9, '#49acff'}, {-8, '#5bb4ff'}, {-7, '#6dbcff'}, {-6, '#7fc4ff'},
-            {-5, '#91ccff'}, {-4, '#9ad0ff'}, {-3, '#a3d4ff'}, {-2, '#b5dcff'}, {-1, '#c7e4ff'},
-            {0, '#d9ecff'}, {1, '#b1f1d6'}, {2, '#95dfbc'}, {3, '#87d3ab'}, {4, '#62af88'},
-            {5, '#4a9775'}, {6, '#07a127'}, {7, '#08b30f'}, {8, '#21bb0e'}, {9, '#39c20c'},
-            {10, '#52ca0b'}, {11, '#84d908'}, {12, '#9ce106'}, {13, '#b5e805'}, {14, '#cef003'},
-            {15, '#e6f702'}, {16, '#f3fb01'}, {17, '#ebe816'}, {18, '#f4d90b'}, {19, '#f4cb0b'},
-            {20, '#f4bd0b'}, {21, '#f4a20b'}, {22, '#f4880b'}, {23, '#f47a0b'}, {24, '#f46d0b'},
-            {25, '#f4520b'}, {26, '#e83709'}, {27, '#dc2708'}, {28, '#c41a0a'}, {29, '#ba130f'},
-            {30, '#af0f14'}, {31, '#8c0000'}, {32, '#780000'}, {33, '#640000'}, {34, '#8c3232'},
-            {35, '#b46464'}, {36, '#c87878'}, {37, '#f0a0a0'}, {38, '#ffb4b4'}, {39, '#ffc8c8'},
-            {40, '#ffdcdc'}, {42, '#fff0f0'}, {44, '#e2e2e2'}, {45, '#c5c5c5'}, {47, '#a8a8a8'},
-            {49, '#8a8a8a'}, {50, '#6d6d6d'}
+            {temp: -40, color: '#ff6eff'}, {temp: -38, color: '#ff46f8'}, {temp: -36, color: '#f627eb'}, {temp: -35, color: '#e522de'}, {temp: -33, color: '#d41dd1'},
+            {temp: -30, color: '#c318c4'}, {temp: -29, color: '#b414b9'}, {temp: -28, color: '#a510ae'}, {temp: -27, color: '#960ca3'}, {temp: -26, color: '#870898'},
+            {temp: -25, color: '#78048d'}, {temp: -24, color: '#64007f'}, {temp: -23, color: '#57007f'}, {temp: -22, color: '#4b007f'}, {temp: -21, color: '#3e007f'},
+            {temp: -20, color: '#32007f'}, {temp: -19, color: '#00287f'}, {temp: -18, color: '#00327f'}, {temp: -17, color: '#003c7f'}, {temp: -16, color: '#00467f'},
+            {temp: -15, color: '#00528f'}, {temp: -14, color: '#0062af'}, {temp: -13, color: '#0072cf'}, {temp: -12, color: '#0082ef'}, {temp: -11, color: '#1392ff'},
+            {temp: -10, color: '#259aff'}, {temp: -9, color: '#49acff'}, {temp: -8, color: '#5bb4ff'}, {temp: -7, color: '#6dbcff'}, {temp: -6, color: '#7fc4ff'},
+            {temp: -5, color: '#91ccff'}, {temp: -4, color: '#9ad0ff'}, {temp: -3, color: '#a3d4ff'}, {temp: -2, color: '#b5dcff'}, {temp: -1, color: '#c7e4ff'},
+            {temp: 0, color: '#d9ecff'}, {temp: 1, color: '#b1f1d6'}, {temp: 2, color: '#95dfbc'}, {temp: 3, color: '#87d3ab'}, {temp: 4, color: '#62af88'},
+            {temp: 5, color: '#4a9775'}, {temp: 6, color: '#07a127'}, {temp: 7, color: '#08b30f'}, {temp: 8, color: '#21bb0e'}, {temp: 9, color: '#39c20c'},
+            {temp: 10, color: '#52ca0b'}, {temp: 11, color: '#84d908'}, {temp: 12, color: '#9ce106'}, {temp: 13, color: '#b5e805'}, {temp: 14, color: '#cef003'},
+            {temp: 15, color: '#e6f702'}, {temp: 16, color: '#f3fb01'}, {temp: 17, color: '#ebe816'}, {temp: 18, color: '#f4d90b'}, {temp: 19, color: '#f4cb0b'},
+            {temp: 20, color: '#f4bd0b'}, {temp: 21, color: '#f4a20b'}, {temp: 22, color: '#f4880b'}, {temp: 23, color: '#f47a0b'}, {temp: 24, color: '#f46d0b'},
+            {temp: 25, color: '#f4520b'}, {temp: 26, color: '#e83709'}, {temp: 27, color: '#dc2708'}, {temp: 28, color: '#c41a0a'}, {temp: 29, color: '#ba130f'},
+            {temp: 30, color: '#af0f14'}, {temp: 31, color: '#8c0000'}, {temp: 32, color: '#780000'}, {temp: 33, color: '#640000'}, {temp: 34, color: '#8c3232'},
+            {temp: 35, color: '#b46464'}, {temp: 36, color: '#c87878'}, {temp: 37, color: '#f0a0a0'}, {temp: 38, color: '#ffb4b4'}, {temp: 39, color: '#ffc8c8'},
+            {temp: 40, color: '#ffdcdc'}, {temp: 42, color: '#fff0f0'}, {temp: 44, color: '#e2e2e2'}, {temp: 45, color: '#c5c5c5'}, {temp: 47, color: '#a8a8a8'},
+            {temp: 49, color: '#8a8a8a'}, {temp: 50, color: '#6d6d6d'}
         ];
 
         function getColor(temp) {
-            if (temp <= -40) return colorStops[0][1];
-            if (temp >= 50) return colorStops[colorStops.length-1][1];
+            if (temp <= colorStops[0].temp) return colorStops[0].color;
+            if (temp >= colorStops[colorStops.length - 1].temp) return colorStops[colorStops.length - 1].color;
 
             for (let i = 0; i < colorStops.length - 1; i++) {
                 const low = colorStops[i];
-                const high = colorStops[i+1];
-                if (temp >= low[0] && temp < high[0]) {
-                    const ratio = (temp - low[0]) / (high[0] - low[0]);
-                    return interpolateColor(low[1], high[1], ratio);
+                const high = colorStops[i + 1];
+                if (temp >= low.temp && temp < high.temp) {
+                    const ratio = (temp - low.temp) / (high.temp - low.temp);
+                    return interpolateColor(low.color, high.color, ratio);
                 }
             }
             return '#6d6d6d';
@@ -101,12 +101,12 @@
         // Simpleheat instance
         const heatmapCanvas = document.getElementById('heatmap');
         const heat = simpleheat('heatmap');
-        heat.radius(60, 40); // larger radius for smoother fill like in your image
+        heat.radius(60, 40);
 
         const labelsCanvas = document.getElementById('labels');
         const lctx = labelsCanvas.getContext('2d');
 
-        // Estonia bounds for projection
+        // Estonia bounds
         const minLat = 57.5, maxLat = 59.7;
         const minLon = 21.5, maxLon = 28.2;
 
@@ -116,7 +116,7 @@
             return [x, y];
         }
 
-        // Resize canvases
+        // Resize
         function resize() {
             const rect = document.getElementById('container').getBoundingClientRect();
             heatmapCanvas.width = labelsCanvas.width = rect.width;
@@ -144,7 +144,6 @@
                 const labelData = [];
 
                 stations.forEach(st => {
-                    const name = st.querySelector('name')?.textContent;
                     const lat = parseFloat(st.querySelector('latitude')?.textContent);
                     const lon = parseFloat(st.querySelector('longitude')?.textContent);
                     const tempStr = st.querySelector('airtemperature')?.textContent;
@@ -153,7 +152,6 @@
                     if (!isNaN(lat) && !isNaN(lon) && !isNaN(temp)) {
                         const [x, y] = project(lat, lon);
 
-                        // Intensity 0-1 based on -40..50 range
                         const intensity = Math.max(0, Math.min(1, (temp + 40) / 90));
 
                         points.push([x, y, intensity]);
@@ -162,10 +160,10 @@
                 });
 
                 heat.data(points);
-                heat.gradient({0.0: getColor(-40), 1.0: getColor(50)}); // use exact ramp ends
+                heat.gradient({0.0: getColor(-40), 1.0: getColor(50)});
                 heat.draw();
 
-                // Draw temperature labels
+                // Labels
                 lctx.font = 'bold 14px Arial';
                 lctx.textAlign = 'center';
                 lctx.textBaseline = 'middle';
