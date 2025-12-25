@@ -35,12 +35,13 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/simpleheat/0.4.0/simpleheat.min.js"></script>
+    <!-- Updated working CDN for simpleheat -->
+    <script src="https://cdn.jsdelivr.net/npm/simpleheat@0.4.0/simpleheat.min.js"></script>
     <script>
         const proxyUrl = 'https://api.allorigins.win/raw?url=';
         const dataUrl = 'https://ilmateenistus.ee/ilma_andmed/xml/observations.php';
 
-        // Fixed color stops using {temp: X, color: '#rrggbb'} objects
+        // Color stops from your QGIS ramp
         const colorStops = [
             {temp: -40, color: '#ff6eff'}, {temp: -38, color: '#ff46f8'}, {temp: -36, color: '#f627eb'}, {temp: -35, color: '#e522de'}, {temp: -33, color: '#d41dd1'},
             {temp: -30, color: '#c318c4'}, {temp: -29, color: '#b414b9'}, {temp: -28, color: '#a510ae'}, {temp: -27, color: '#960ca3'}, {temp: -26, color: '#870898'},
@@ -98,7 +99,7 @@
         }
         drawLegend();
 
-        // Simpleheat instance
+        // Simpleheat instance (now loads correctly)
         const heatmapCanvas = document.getElementById('heatmap');
         const heat = simpleheat('heatmap');
         heat.radius(60, 40);
@@ -121,8 +122,8 @@
             const rect = document.getElementById('container').getBoundingClientRect();
             heatmapCanvas.width = labelsCanvas.width = rect.width;
             heatmapCanvas.height = labelsCanvas.height = rect.height;
-            heat._renderer.canvas.width = rect.width;
-            heat._renderer.canvas.height = rect.height;
+            if (heat._renderer) heat._renderer.canvas.width = rect.width;
+            if (heat._renderer) heat._renderer.canvas.height = rect.height;
             drawLegend();
         }
         window.addEventListener('resize', resize);
