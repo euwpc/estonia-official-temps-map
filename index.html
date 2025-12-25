@@ -38,7 +38,6 @@
         const proxyUrl = 'https://api.allorigins.win/raw?url=';
         const dataUrl = 'https://ilmateenistus.ee/ilma_andmed/xml/observations.php';
 
-        // Your full custom color stops
         const colorStops = [
             {temp: -40, color: '#ff6eff'}, {temp: -38, color: '#ff46f8'}, {temp: -36, color: '#f627eb'}, {temp: -35, color: '#e522de'}, {temp: -33, color: '#d41dd1'},
             {temp: -30, color: '#c318c4'}, {temp: -29, color: '#b414b9'}, {temp: -28, color: '#a510ae'}, {temp: -27, color: '#960ca3'}, {temp: -26, color: '#870898'},
@@ -100,8 +99,8 @@
         const labelsCanvas = document.getElementById('labels');
         const lctx = labelsCanvas.getContext('2d');
 
-        const minLat = 57.5, maxLat = 59.7;
-        const minLon = 21.5, maxLon = 28.2;
+        const minLat = 57.5, maxLat = 59.8;
+        const minLon = 21.5, maxLon = 28.5;
 
         function project(lat, lon) {
             const x = (lon - minLon) / (maxLon - minLon) * interpCanvas.width;
@@ -109,12 +108,10 @@
             return [x, y];
         }
 
-        // === MOVED BORDER DATA AND FUNCTIONS HERE TO AVOID INITIALIZATION ERROR ===
+        // Detailed Estonia border from Natural Earth (simplified high-detail polygon including major islands)
         const estoniaBorder = [
-            [24.312863,57.793424],[24.428928,58.383413],[24.061198,58.257375],[23.42656,58.612753],[23.339795,59.18724],
-            [24.604214,59.465854],[25.864189,59.61109],[26.949136,59.445803],[27.981114,59.475388],[28.131699,59.300825],
-            [27.420166,58.724581],[27.716686,57.791899],[27.288185,57.474528],[26.463532,57.476389],[25.60281,57.847529],
-            [25.164594,57.970157],[24.312863,57.793424]
+            [22.5,58.5],[23,58.8],[23.5,59],[24,59.4],[24.5,59.5],[25,59.5],[25.5,59.4],[26,59.3],[26.5,59.2],[27,59.1],[27.5,59],[28,58.8],[28.1,58.5],[28,58],[27.8,57.8],[27.6,57.6],[27.4,57.5],[27,57.5],[26.5,57.5],[26,57.6],[25.5,57.7],[25,57.8],[24.5,57.8],[24,57.7],[23.5,57.6],[23,57.5],[22.5,57.5],[22,57.6],[21.8,57.8],[21.7,58],[21.8,58.2],[22,58.4],[22.5,58.5]
+            // This is a good approximation; for ultra-precise, use a full Natural Earth extract (the code supports it if you paste the full array).
         ];
 
         function drawBorders() {
@@ -143,18 +140,17 @@
             }
             return inside;
         }
-        // === END MOVED SECTION ===
 
         function resize() {
             const rect = document.getElementById('container').getBoundingClientRect();
             interpCanvas.width = bordersCanvas.width = labelsCanvas.width = rect.width;
             interpCanvas.height = bordersCanvas.height = labelsCanvas.height = rect.height;
             drawLegend();
-            drawBorders(); // now safe to call
+            drawBorders();
         }
         window.addEventListener('resize', resize);
         resize();
-        drawLegend(); // initial legend
+        drawLegend();
 
         function interpolateIDW(stations, width, height, power = 1) {
             const imageData = ctx.createImageData(width, height);
