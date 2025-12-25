@@ -3,195 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estonia Official Stations Temperature Map (100 Stations)</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>Estonia • Temperatura powietrza 2 m</title>
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        #map { height: 100vh; width: 100%; }
-        .legend { background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.3); line-height: 1.4; font-size: 12px; }
-        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.8; }
-        #update { position: absolute; top: 10px; left: 10px; background: white; padding: 5px 10px; z-index: 1000; border-radius: 5px; box-shadow: 0 0 5px rgba(0,0,0,0.3); font-weight: bold; }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #fff; }
+        #container { position: relative; width: 100vw; height: 100vh; }
+        #background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #f0f0f0; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #title { position: absolute; top: 10px; left: 20px; font-size: 24px; font-weight: bold; color: #000; z-index: 10; }
+        #timestamp { position: absolute; top: 50px; left: 20px; font-size: 16px; color: #000; z-index: 10; }
+        #source { position: absolute; bottom: 10px; left: 20px; font-size: 12px; color: #000; z-index: 10; }
+        #source a { color: #000; }
+        .legend { position: absolute; top: 50%; right: 20px; transform: translateY(-50%); background: rgba(255,255,255,0.8); padding: 10px; border: 1px solid #ccc; z-index: 10; }
+        .legend canvas { margin-bottom: 10px; }
+        .legend div { text-align: center; font-size: 14px; }
     </style>
 </head>
 <body>
-    <div id="update">Loading...</div>
-    <div id="map"></div>
+    <div id="container">
+        <div id="background"></div>
+        <canvas id="heatmap"></canvas>
+        <canvas id="labels"></canvas>
+        <div id="title">Estonia • Temperatura powietrza 2 m</div>
+        <div id="timestamp">Loading data...</div>
+        <div id="source">Źródło: Estonian Environment Agency • <a href="https://ilmateenistus.ee" target="_blank">ilmateenistus.ee</a></div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <div class="legend">
+            <canvas id="legendCanvas" width="40" height="600"></canvas>
+            <div>-40 °C</div>
+            <div style="margin-top: 260px;">0 °C</div>
+            <div style="margin-top: 240px;">50 °C</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simpleheat/0.4.0/simpleheat.min.js"></script>
     <script>
-        // 100 stations list (unchanged from previous)
-        const stations = [
-            {name: "Tallinn-Harku", lat: 59.398, lon: 24.602},
-            {name: "Tartu-Tõravere", lat: 58.254, lon: 26.462},
-            {name: "Pärnu", lat: 58.419, lon: 24.499},
-            {name: "Narva", lat: 59.391, lon: 28.107},
-            {name: "Võru", lat: 57.846, lon: 27.028},
-            {name: "Viljandi", lat: 58.364, lon: 25.592},
-            {name: "Jõhvi", lat: 59.357, lon: 27.412},
-            {name: "Kuressaare", lat: 58.249, lon: 22.510},
-            {name: "Haapsalu", lat: 58.947, lon: 23.538},
-            {name: "Rakvere", lat: 59.349, lon: 26.362},
-            {name: "Valga", lat: 57.784, lon: 26.038},
-            {name: "Paide", lat: 58.886, lon: 25.557},
-            {name: "Rapla", lat: 58.999, lon: 24.792},
-            {name: "Kärdla", lat: 58.991, lon: 22.751},
-            {name: "Sõrve", lat: 58.041, lon: 22.053},
-            {name: "Vilsandi", lat: 58.383, lon: 21.817},
-            {name: "Ruhnu", lat: 57.784, lon: 23.259},
-            {name: "Pakri", lat: 59.393, lon: 24.038},
-            {name: "Tiirikko", lat: 59.583, lon: 25.017},
-            {name: "Lääne-Nigula", lat: 58.983, lon: 23.717},
-            {name: "Türi", lat: 58.808, lon: 25.429},
-            {name: "Jõgeva", lat: 58.750, lon: 26.400},
-            {name: "Väike-Maarja", lat: 59.133, lon: 26.250},
-            {name: "Põltsamaa", lat: 58.654, lon: 25.977},
-            {name: "Elva", lat: 58.223, lon: 26.421},
-            {name: "Otepää", lat: 58.060, lon: 26.498},
-            {name: "Antsla", lat: 57.826, lon: 26.532},
-            {name: "Rõuge", lat: 57.728, lon: 26.910},
-            {name: "Haanja", lat: 57.712, lon: 27.050},
-            {name: "Põlva", lat: 58.060, lon: 27.067},
-            {name: "Kilingi-Nõmme", lat: 58.150, lon: 24.967},
-            {name: "Tõrva", lat: 58.003, lon: 25.935},
-            {name: "Lihula", lat: 58.682, lon: 23.845},
-            {name: "Virtsu", lat: 58.573, lon: 23.513},
-            {name: "Roomassaare", lat: 58.217, lon: 22.517},
-            {name: "Heltermaa", lat: 58.867, lon: 23.050},
-            {name: "Dirhami", lat: 59.208, lon: 23.500},
-            {name: "Ristna", lat: 58.917, lon: 22.067},
-            {name: "Kunda", lat: 59.500, lon: 26.533},
-            {name: "Sillamäe", lat: 59.400, lon: 27.750},
-            {name: "Toila", lat: 59.417, lon: 27.517},
-            {name: "Kohtla-Järve", lat: 59.400, lon: 27.283},
-            {name: "Tamsalu", lat: 59.158, lon: 26.108},
-            {name: "Vinni", lat: 59.283, lon: 26.567},
-            {name: "Haljala", lat: 59.433, lon: 26.267},
-            {name: "Sonda", lat: 59.350, lon: 26.833},
-            {name: "Põltsamaa-Kukulinna", lat: 58.667, lon: 25.883},
-            {name: "Mustla", lat: 58.233, lon: 25.567},
-            {name: "Abja-Paluoja", lat: 58.125, lon: 25.350},
-            {name: "Karksi-Nuia", lat: 58.103, lon: 25.567},
-            {name: "Mõisaküla", lat: 58.100, lon: 25.183},
-            {name: "Suure-Jaani", lat: 58.533, lon: 25.467},
-            {name: "Võhma", lat: 58.633, lon: 25.550},
-            {name: "Kehtna", lat: 58.933, lon: 24.883},
-            {name: "Järvakandi", lat: 58.783, lon: 24.833},
-            {name: "Kohila", lat: 59.167, lon: 24.750},
-            {name: "Hageri", lat: 59.150, lon: 24.667},
-            {name: "Kiili", lat: 59.233, lon: 24.833},
-            {name: "Maardu", lat: 59.467, lon: 25.017},
-            {name: "Keila", lat: 59.317, lon: 24.417},
-            {name: "Paldiski", lat: 59.350, lon: 24.050},
-            {name: "Pirita", lat: 59.467, lon: 24.833},
-            {name: "Rohuneeme", lat: 59.567, lon: 24.800},
-            {name: "Loksa", lat: 59.583, lon: 25.717},
-            {name: "Käsmu", lat: 59.600, lon: 25.917},
-            {name: "Vosu", lat: 59.583, lon: 26.083},
-            {name: "Aseri", lat: 59.450, lon: 26.867},
-            {name: "Kiviõli", lat: 59.350, lon: 26.967},
-            {name: "Lüganuse", lat: 59.383, lon: 27.033},
-            {name: "Püssi", lat: 59.367, lon: 27.050},
-            {name: "Narva-Jõesuu", lat: 59.467, lon: 28.050},
-            {name: "Vaivara", lat: 59.367, lon: 27.750},
-            {name: "Saka", lat: 59.433, lon: 27.217},
-            {name: "Mõntu", lat: 58.917, lon: 22.917},
-            {name: "Triigi", lat: 58.583, lon: 22.983},
-            {name: "Orissaare", lat: 58.567, lon: 23.083},
-            {name: "Kihelkonna", lat: 58.367, lon: 22.033},
-            {name: "Kärla", lat: 58.333, lon: 22.267},
-            {name: "Leisi", lat: 58.583, lon: 22.700},
-            {name: "Mustjala", lat: 58.467, lon: 22.233},
-            {name: "Salme", lat: 58.167, lon: 22.250},
-            {name: "Häädemeeste", lat: 58.083, lon: 24.500},
-            {name: "Kabli", lat: 58.017, lon: 24.467},
-            {name: "Tõstamaa", lat: 58.333, lon: 23.983},
-            {name: "Audru", lat: 58.417, lon: 24.383},
-            {name: "Sindi", lat: 58.400, lon: 24.017},
-            {name: "Saarde", lat: 58.150, lon: 24.817},
-            {name: "Tahkuranna", lat: 58.250, lon: 24.500},
-            {name: "Varbla", lat: 58.433, lon: 23.767},
-            {name: "Hanila", lat: 58.617, lon: 23.683},
-            {name: "Martna", lat: 58.850, lon: 23.817},
-            {name: "Noarootsi", lat: 59.000, lon: 23.517},
-            {name: "Nõva", lat: 59.217, lon: 23.683},
-            {name: "Padise", lat: 59.233, lon: 24.150},
-            {name: "Vasala", lat: 59.300, lon: 24.300},
-            {name: "Klooga", lat: 59.317, lon: 24.233},
-            {name: "Laulasmaa", lat: 59.383, lon: 24.217},
-            {name: "Vääna", lat: 59.383, lon: 24.450},
-            {name: "Tabasalu", lat: 59.417, lon: 24.550},
-            {name: "Saue", lat: 59.317, lon: 24.567},
-            {name: "Saku", lat: 59.300, lon: 24.667},
-            {name: "Kiisa", lat: 59.233, lon: 24.700}
-            // Total: 100 stations
-        ];
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        const dataUrl = 'https://ilmateenistus.ee/ilma_andmed/xml/observations.php';
 
-        const map = L.map('map').setView([58.6, 25.5], 8);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
-
-        let markers = [];
-
-        // FIXED: Array format instead of object keys
+        // Custom color stops exactly from your QGIS ramp (value => #rrggbb)
         const colorStops = [
-            [-40, "#ff6eff"], [-38, "#ff46f8"], [-36, "#f627eb"], [-35, "#e522de"], [-33, "#d41dd1"],
-            [-30, "#c318c4"], [-29, "#b414b9"], [-28, "#a510ae"], [-27, "#960ca3"], [-26, "#870898"],
-            [-25, "#78048d"], [-24, "#64007f"], [-23, "#57007f"], [-22, "#4b007f"], [-21, "#3e007f"],
-            [-20, "#32007f"], [-19, "#00287f"], [-18, "#00327f"], [-17, "#003c7f"], [-16, "#00467f"],
-            [-15, "#00528f"], [-14, "#0062af"], [-13, "#0072cf"], [-12, "#0082ef"], [-11, "#1392ff"],
-            [-10, "#259aff"], [-9, "#49acff"], [-8, "#5bb4ff"], [-7, "#6dbcff"], [-6, "#7fc4ff"],
-            [-5, "#91ccff"], [-4, "#9ad0ff"], [-3, "#a3d4ff"], [-2, "#b5dcff"], [-1, "#c7e4ff"],
-            [0, "#d9ecff"], [1, "#b1f1d6"], [2, "#95dfbc"], [3, "#87d3ab"], [4, "#62af88"],
-            [5, "#4a9775"], [6, "#07a127"], [7, "#08b30f"], [8, "#21bb0e"], [9, "#39c20c"],
-            [10, "#52ca0b"], [11, "#84d908"], [12, "#9ce106"], [13, "#b5e805"], [14, "#cef003"],
-            [15, "#e6f702"], [16, "#f3fb01"], [17, "#ebe816"], [18, "#f4d90b"], [19, "#f4cb0b"],
-            [20, "#f4bd0b"], [21, "#f4a20b"], [22, "#f4880b"], [23, "#f47a0b"], [24, "#f46d0b"],
-            [25, "#f4520b"], [26, "#e83709"], [27, "#dc2708"], [28, "#c41a0a"], [29, "#ba130f"],
-            [30, "#af0f14"], [31, "#8c0000"], [32, "#780000"], [33, "#640000"], [34, "#8c3232"],
-            [35, "#b46464"], [36, "#c87878"], [37, "#f0a0a0"], [38, "#ffb4b4"], [39, "#ffc8c8"],
-            [40, "#ffdcdc"], [42, "#fff0f0"], [44, "#e2e2e2"], [45, "#c5c5c5"], [47, "#a8a8a8"],
-            [49, "#8a8a8a"], [50, "#6d6d6d"]
+            {-40, '#ff6eff'}, {-38, '#ff46f8'}, {-36, '#f627eb'}, {-35, '#e522de'}, {-33, '#d41dd1'},
+            {-30, '#c318c4'}, {-29, '#b414b9'}, {-28, '#a510ae'}, {-27, '#960ca3'}, {-26, '#870898'},
+            {-25, '#78048d'}, {-24, '#64007f'}, {-23, '#57007f'}, {-22, '#4b007f'}, {-21, '#3e007f'},
+            {-20, '#32007f'}, {-19, '#00287f'}, {-18, '#00327f'}, {-17, '#003c7f'}, {-16, '#00467f'},
+            {-15, '#00528f'}, {-14, '#0062af'}, {-13, '#0072cf'}, {-12, '#0082ef'}, {-11, '#1392ff'},
+            {-10, '#259aff'}, {-9, '#49acff'}, {-8, '#5bb4ff'}, {-7, '#6dbcff'}, {-6, '#7fc4ff'},
+            {-5, '#91ccff'}, {-4, '#9ad0ff'}, {-3, '#a3d4ff'}, {-2, '#b5dcff'}, {-1, '#c7e4ff'},
+            {0, '#d9ecff'}, {1, '#b1f1d6'}, {2, '#95dfbc'}, {3, '#87d3ab'}, {4, '#62af88'},
+            {5, '#4a9775'}, {6, '#07a127'}, {7, '#08b30f'}, {8, '#21bb0e'}, {9, '#39c20c'},
+            {10, '#52ca0b'}, {11, '#84d908'}, {12, '#9ce106'}, {13, '#b5e805'}, {14, '#cef003'},
+            {15, '#e6f702'}, {16, '#f3fb01'}, {17, '#ebe816'}, {18, '#f4d90b'}, {19, '#f4cb0b'},
+            {20, '#f4bd0b'}, {21, '#f4a20b'}, {22, '#f4880b'}, {23, '#f47a0b'}, {24, '#f46d0b'},
+            {25, '#f4520b'}, {26, '#e83709'}, {27, '#dc2708'}, {28, '#c41a0a'}, {29, '#ba130f'},
+            {30, '#af0f14'}, {31, '#8c0000'}, {32, '#780000'}, {33, '#640000'}, {34, '#8c3232'},
+            {35, '#b46464'}, {36, '#c87878'}, {37, '#f0a0a0'}, {38, '#ffb4b4'}, {39, '#ffc8c8'},
+            {40, '#ffdcdc'}, {42, '#fff0f0'}, {44, '#e2e2e2'}, {45, '#c5c5c5'}, {47, '#a8a8a8'},
+            {49, '#8a8a8a'}, {50, '#6d6d6d'}
         ];
 
         function getColor(temp) {
-            if (isNaN(temp)) return "#808080";
+            if (temp <= -40) return colorStops[0][1];
+            if (temp >= 50) return colorStops[colorStops.length-1][1];
+
             for (let i = 0; i < colorStops.length - 1; i++) {
-                if (temp >= colorStops[i][0] && temp < colorStops[i+1][0]) {
-                    const low = colorStops[i], high = colorStops[i+1];
+                const low = colorStops[i];
+                const high = colorStops[i+1];
+                if (temp >= low[0] && temp < high[0]) {
                     const ratio = (temp - low[0]) / (high[0] - low[0]);
                     return interpolateColor(low[1], high[1], ratio);
                 }
             }
-            return temp < colorStops[0][0] ? colorStops[0][1] : colorStops[colorStops.length-1][1];
+            return '#6d6d6d';
         }
 
         function interpolateColor(c1, c2, ratio) {
             const r1 = parseInt(c1.slice(1,3),16), g1 = parseInt(c1.slice(3,5),16), b1 = parseInt(c1.slice(5,7),16);
             const r2 = parseInt(c2.slice(1,3),16), g2 = parseInt(c2.slice(3,5),16), b2 = parseInt(c2.slice(5,7),16);
-            const r = Math.round(r1 + ratio*(r2-r1));
-            const g = Math.round(g1 + ratio*(g2-g1));
-            const b = Math.round(b1 + ratio*(b2-b1));
-            return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+            const r = Math.round(r1 + ratio * (r2 - r1));
+            const g = Math.round(g1 + ratio * (g2 - g1));
+            const b = Math.round(b1 + ratio * (b2 - b1));
+            return `rgb(${r},${g},${b})`;
         }
 
-        // Rest of the code (updateMap, legend, etc.) remains the same
-        async function updateMap() { /* ... same as before ... */ }
+        // Draw legend
+        function drawLegend() {
+            const canvas = document.getElementById('legendCanvas');
+            const ctx = canvas.getContext('2d');
+            const height = canvas.height;
+            for (let y = 0; y < height; y++) {
+                const temp = -40 + (y / height) * 90; // -40 to +50
+                ctx.fillStyle = getColor(temp);
+                ctx.fillRect(0, height - y - 1, 40, 1);
+            }
+        }
+        drawLegend();
 
-        const legend = L.control({position: 'bottomright'});
-        legend.onAdd = function () {
-            const div = L.DomUtil.create('div', 'legend');
-            div.innerHTML = '<strong>T (°C)</strong><br>';
-            [...colorStops].reverse().forEach(stop => {
-                div.innerHTML += `<i style="background:${stop[1]}"></i>${stop[0]}<br>`;
+        // Simpleheat instance
+        const heatmapCanvas = document.getElementById('heatmap');
+        const heat = simpleheat('heatmap');
+        heat.radius(60, 40); // larger radius for smoother fill like in your image
+
+        const labelsCanvas = document.getElementById('labels');
+        const lctx = labelsCanvas.getContext('2d');
+
+        // Estonia bounds for projection
+        const minLat = 57.5, maxLat = 59.7;
+        const minLon = 21.5, maxLon = 28.2;
+
+        function project(lat, lon) {
+            const x = (lon - minLon) / (maxLon - minLon) * heatmapCanvas.width;
+            const y = (1 - (lat - minLat) / (maxLat - minLat)) * heatmapCanvas.height;
+            return [x, y];
+        }
+
+        // Resize canvases
+        function resize() {
+            const rect = document.getElementById('container').getBoundingClientRect();
+            heatmapCanvas.width = labelsCanvas.width = rect.width;
+            heatmapCanvas.height = labelsCanvas.height = rect.height;
+            heat._renderer.canvas.width = rect.width;
+            heat._renderer.canvas.height = rect.height;
+            drawLegend();
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        fetch(proxyUrl + encodeURIComponent(dataUrl))
+            .then(r => r.text())
+            .then(xmlText => {
+                const parser = new DOMParser();
+                const xml = parser.parseFromString(xmlText, "text/xml");
+                const obs = xml.querySelector('observations');
+                const ts = parseInt(obs.getAttribute('timestamp')) * 1000;
+                const date = new Date(ts);
+                document.getElementById('timestamp').textContent = 
+                    date.toUTCString().replace('GMT', 'UTC');
+
+                const stations = xml.querySelectorAll('station');
+                const points = [];
+                const labelData = [];
+
+                stations.forEach(st => {
+                    const name = st.querySelector('name')?.textContent;
+                    const lat = parseFloat(st.querySelector('latitude')?.textContent);
+                    const lon = parseFloat(st.querySelector('longitude')?.textContent);
+                    const tempStr = st.querySelector('airtemperature')?.textContent;
+                    const temp = tempStr ? parseFloat(tempStr) : NaN;
+
+                    if (!isNaN(lat) && !isNaN(lon) && !isNaN(temp)) {
+                        const [x, y] = project(lat, lon);
+
+                        // Intensity 0-1 based on -40..50 range
+                        const intensity = Math.max(0, Math.min(1, (temp + 40) / 90));
+
+                        points.push([x, y, intensity]);
+                        labelData.push({x, y, temp: temp.toFixed(1)});
+                    }
+                });
+
+                heat.data(points);
+                heat.gradient({0.0: getColor(-40), 1.0: getColor(50)}); // use exact ramp ends
+                heat.draw();
+
+                // Draw temperature labels
+                lctx.font = 'bold 14px Arial';
+                lctx.textAlign = 'center';
+                lctx.textBaseline = 'middle';
+                lctx.fillStyle = '#000';
+                lctx.strokeStyle = '#fff';
+                lctx.lineWidth = 3;
+
+                labelData.forEach(ld => {
+                    lctx.strokeText(ld.temp, ld.x, ld.y);
+                    lctx.fillText(ld.temp, ld.x, ld.y);
+                });
+            })
+            .catch(err => {
+                document.getElementById('timestamp').textContent = 'Error loading data';
+                console.error(err);
             });
-            return div;
-        };
-        legend.addTo(map);
-
-        updateMap();
-        setInterval(updateMap, 600000);
     </script>
 </body>
 </html>
