@@ -7,7 +7,6 @@
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #fff; }
         #container { position: relative; width: 100vw; height: 100vh; }
-        #background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #f0f0f0; }
         canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
         #title { position: absolute; top: 10px; left: 20px; font-size: 24px; font-weight: bold; color: #000; z-index: 10; }
         #timestamp { position: absolute; top: 50px; left: 20px; font-size: 16px; color: #000; z-index: 10; }
@@ -20,8 +19,7 @@
 </head>
 <body>
     <div id="container">
-        <div id="background"></div>
-        <canvas id="heatmap"></canvas>
+        <canvas id="interpolation"></canvas>
         <canvas id="labels"></canvas>
         <div id="title">Estonia • Temperatura powietrza 2 m</div>
         <div id="timestamp">Loading data...</div>
@@ -35,13 +33,11 @@
         </div>
     </div>
 
-    <!-- Updated working CDN for simpleheat -->
-    <script src="https://cdn.jsdelivr.net/npm/simpleheat@0.4.0/simpleheat.min.js"></script>
     <script>
         const proxyUrl = 'https://api.allorigins.win/raw?url=';
         const dataUrl = 'https://ilmateenistus.ee/ilma_andmed/xml/observations.php';
 
-        // Color stops from your QGIS ramp
+        // Full color stops from your QGIS ramp
         const colorStops = [
             {temp: -40, color: '#ff6eff'}, {temp: -38, color: '#ff46f8'}, {temp: -36, color: '#f627eb'}, {temp: -35, color: '#e522de'}, {temp: -33, color: '#d41dd1'},
             {temp: -30, color: '#c318c4'}, {temp: -29, color: '#b414b9'}, {temp: -28, color: '#a510ae'}, {temp: -27, color: '#960ca3'}, {temp: -26, color: '#870898'},
@@ -99,35 +95,72 @@
         }
         drawLegend();
 
-        // Simpleheat instance (now loads correctly)
-        const heatmapCanvas = document.getElementById('heatmap');
-        const heat = simpleheat('heatmap');
-        heat.radius(60, 40);
-
+        const interpCanvas = document.getElementById('interpolation');
+        const ctx = interpCanvas.getContext('2d');
         const labelsCanvas = document.getElementById('labels');
         const lctx = labelsCanvas.getContext('2d');
 
-        // Estonia bounds
+        // Estonia bounds for projection
         const minLat = 57.5, maxLat = 59.7;
         const minLon = 21.5, maxLon = 28.2;
 
         function project(lat, lon) {
-            const x = (lon - minLon) / (maxLon - minLon) * heatmapCanvas.width;
-            const y = (1 - (lat - minLat) / (maxLat - minLat)) * heatmapCanvas.height;
+            const x = (lon - minLon) / (maxLon - minLon) * interpCanvas.width;
+            const y = (1 - (lat - minLat) / (maxLat - minLat)) * interpCanvas.height;
             return [x, y];
         }
 
-        // Resize
+        // Resize canvases
         function resize() {
             const rect = document.getElementById('container').getBoundingClientRect();
-            heatmapCanvas.width = labelsCanvas.width = rect.width;
-            heatmapCanvas.height = labelsCanvas.height = rect.height;
-            if (heat._renderer) heat._renderer.canvas.width = rect.width;
-            if (heat._renderer) heat._renderer.canvas.height = rect.height;
+            interpCanvas.width = labelsCanvas.width = rect.width;
+            interpCanvas.height = labelsCanvas.height = rect.height;
             drawLegend();
         }
         window.addEventListener('resize', resize);
         resize();
+
+        // IDW interpolation with ~1km resolution (step ~2px for speed, assuming canvas ~500km wide / 500px = 1km/px)
+        function interpolateIDW(stations, width, height, power = 1) { // Lower power for more spread
+            const imageData = ctx.createImageData(width, height);
+            const data = imageData.data;
+            const step = 2; // ~1km if canvas scale is ~0.5km/px, adjust if needed
+
+            for (let y = 0; y < height; y += step) {
+                for (let x = 0; x < width; x += step) {
+                    let totalWeight = 0;
+                    let weightedTemp = 0;
+
+                    stations.forEach(st => {
+                        const dx = x - st.px;
+                        const dy = y - st.py;
+                        const dist = Math.sqrt(dx*dx + dy*dy) + 0.001; // avoid zero
+                        const weight = 1 / Math.pow(dist, power);
+                        weightedTemp += st.temp * weight;
+                        totalWeight += weight;
+                    });
+
+                    const temp = totalWeight > 0 ? weightedTemp / totalWeight : 0;
+
+                    const color = getColor(temp);
+                    const rgb = color.match(/\d+/g).map(Number);
+
+                    // Fill small block for the step
+                    for (let dy = 0; dy < step; dy++) {
+                        for (let dx = 0; dx < step; dx++) {
+                            if (x + dx < width && y + dy < height) {
+                                const i = ((y + dy) * width + (x + dx)) * 4;
+                                data[i] = rgb[0];
+                                data[i+1] = rgb[1];
+                                data[i+2] = rgb[2];
+                                data[i+3] = 255;
+                            }
+                        }
+                    }
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+        }
 
         fetch(proxyUrl + encodeURIComponent(dataUrl))
             .then(r => r.text())
@@ -140,31 +173,25 @@
                 document.getElementById('timestamp').textContent = 
                     date.toUTCString().replace('GMT', 'UTC');
 
-                const stations = xml.querySelectorAll('station');
-                const points = [];
+                const stations = [];
                 const labelData = [];
 
-                stations.forEach(st => {
+                xml.querySelectorAll('station').forEach(st => {
                     const lat = parseFloat(st.querySelector('latitude')?.textContent);
                     const lon = parseFloat(st.querySelector('longitude')?.textContent);
                     const tempStr = st.querySelector('airtemperature')?.textContent;
                     const temp = tempStr ? parseFloat(tempStr) : NaN;
 
                     if (!isNaN(lat) && !isNaN(lon) && !isNaN(temp)) {
-                        const [x, y] = project(lat, lon);
-
-                        const intensity = Math.max(0, Math.min(1, (temp + 40) / 90));
-
-                        points.push([x, y, intensity]);
-                        labelData.push({x, y, temp: temp.toFixed(1)});
+                        const [px, py] = project(lat, lon);
+                        stations.push({px, py, temp});
+                        labelData.push({x: px, y: py, temp: temp.toFixed(1)});
                     }
                 });
 
-                heat.data(points);
-                heat.gradient({0.0: getColor(-40), 1.0: getColor(50)});
-                heat.draw();
+                interpolateIDW(stations, interpCanvas.width, interpCanvas.height);
 
-                // Labels
+                // Draw labels
                 lctx.font = 'bold 14px Arial';
                 lctx.textAlign = 'center';
                 lctx.textBaseline = 'middle';
@@ -178,7 +205,7 @@
                 });
             })
             .catch(err => {
-                document.getElementById('timestamp').textContent = 'Error loading data';
+                document.getElementById('timestamp').textContent = 'Error loading data: ' + err.message;
                 console.error(err);
             });
     </script>
