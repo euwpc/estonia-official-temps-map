@@ -1,6 +1,7 @@
 import requests
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as patheffects
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from matplotlib.colors import ListedColormap, Normalize
@@ -290,7 +291,6 @@ response = requests.get(url, headers=headers)
 response.raise_for_status()
 root = ET.fromstring(response.content)
 
-# Root is <observations timestamp="...">
 if root.tag != 'observations':
     raise ValueError(f"Unexpected root tag: {root.tag}")
 
@@ -304,13 +304,11 @@ title_time = dt.strftime("%Y-%m-%d %H:%M UTC")
 temps = []
 lats = []
 lons = []
-station_names = []  # For labels
 
 for station in root.findall('station'):
     temp_elem = station.find('airtemperature')
     lat_elem = station.find('latitude')
     lon_elem = station.find('longitude')
-    name_elem = station.find('name')
     
     if (temp_elem is not None and temp_elem.text is not None and temp_elem.text.strip() and
         lat_elem is not None and lat_elem.text is not None and
@@ -319,11 +317,9 @@ for station in root.findall('station'):
             temp = float(temp_elem.text.strip())
             lat = float(lat_elem.text.strip())
             lon = float(lon_elem.text.strip())
-            name = name_elem.text if name_elem is not None else ""
             temps.append(temp)
             lats.append(lat)
             lons.append(lon)
-            station_names.append(name)
         except ValueError:
             continue
 
@@ -342,8 +338,8 @@ max_temp = np.max(temps)
 # High-resolution grid (~100m)
 lon_range = np.max(lons) - np.min(lons)
 lat_range = np.max(lats) - np.min(lats)
-num_lon = int(lon_range / 0.001) + 100  # ~100m in longitude
-num_lat = int(lat_range / 0.001) + 100  # ~100m in latitude
+num_lon = int(lon_range / 0.001) + 100
+num_lat = int(lat_range / 0.001) + 100
 
 grid_lon = np.linspace(np.min(lons) - 0.02, np.max(lons) + 0.02, num_lon)
 grid_lat = np.linspace(np.min(lats) - 0.02, np.max(lats) + 0.02, num_lat)
@@ -352,22 +348,18 @@ grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
 grid_temp = griddata((lons, lats), temps, (grid_x, grid_y), method='linear')
 
 # Plot
-fig = plt.figure(figsize=(16, 18))  # Larger figure for high-res
+fig = plt.figure(figsize=(16, 18))
 ax = plt.axes(projection=ccrs.PlateCarree())
 ax.set_extent([21.4, 28.6, 57.4, 59.9], crs=ccrs.PlateCarree())
 
-# Filled high-res contours
+# Filled high-res color map only (no contour lines)
 ax.contourf(grid_lon, grid_lat, grid_temp, levels=300, cmap=cmap, norm=norm, transform=ccrs.PlateCarree())
 
-# Fine contour lines with more frequent labels
-cl = ax.contour(grid_lon, grid_lat, grid_temp, levels=np.arange(-40, 51, 0.5), colors='black', linewidths=0.4, alpha=0.7, transform=ccrs.PlateCarree())
-ax.clabel(cl, inline=True, fontsize=7, fmt='%.1f', inline_spacing=4)
-
-# Add station temperature labels directly
+# Station temperature labels with white halo
 for lon, lat, temp in zip(lons, lats, temps):
-    ax.text(lon, lat, f'{temp:.1f}', fontsize=8, ha='center', va='center',
-            transform=ccrs.PlateCarree(), color='black',
-            path_effects=[plt.matplotlib.patheffects.withStroke(linewidth=3, foreground='white')])
+    text = ax.text(lon, lat, f'{temp:.1f}', fontsize=8, ha='center', va='center',
+                   transform=ccrs.PlateCarree(), color='black')
+    text.set_path_effects([patheffects.withStroke(linewidth=3, foreground='white')])
 
 # Borders and features
 ax.add_feature(cfeature.BORDERS, linewidth=1.5)
@@ -381,4 +373,4 @@ plt.title(f"Estonia • Temperatura powietrza 2 m\n{title_time}\nMin: {min_temp:
 plt.savefig("temperature_map.png", dpi=300, bbox_inches='tight', facecolor='white')
 plt.close()
 
-print("High-resolution map generated successfully with station labels!")
+print("High-resolution map generated successfully (no contour lines, station labels only)!")
