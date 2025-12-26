@@ -26,7 +26,7 @@ def parse_qml_colormap(qml_content, vmin, vmax):
     colors = [c[1] for c in items]
     return ListedColormap(colors), Normalize(vmin=vmin, vmax=vmax)
 
-# Full QML XML content embedded
+# Your full QML XML as a string
 qml_content = """<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
 <qgis styleCategories="AllStyleCategories" maxScale="0" hasScaleBasedVisibilityFlag="0" autoRefreshMode="Disabled" autoRefreshTime="0" version="3.40.6-Bratislava" minScale="1e+08">
   <flags>
@@ -285,17 +285,19 @@ cmap, norm = parse_qml_colormap(qml_content, vmin=-40, vmax=50)
 
 # Fetch latest observations
 url = 'https://ilmateenistus.ee/ilma_andmed/xml/observations.php'
-response = requests.get(url)
+headers = {'User-Agent': 'Mozilla/5.0 (compatible; GitHubActions/1.0)'}
+response = requests.get(url, headers=headers)
 response.raise_for_status()
 root = ET.fromstring(response.content)
 
-# Robust timestamp extraction
-obs = root.find('observations') or root.find('.//observations')
-if obs is None:
-    raise ValueError("No <observations> tag found in XML")
-if obs.get('timestamp') is None:
-    raise ValueError("No timestamp attribute in observations")
-timestamp = int(obs.get('timestamp'))
+# Root is <observations timestamp="...">
+if root.tag != 'observations':
+    raise ValueError(f"Unexpected root tag: {root.tag}")
+
+timestamp_str = root.get('timestamp')
+if not timestamp_str:
+    raise ValueError("No timestamp attribute found on <observations>")
+timestamp = int(timestamp_str)
 dt = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
 title_time = dt.strftime("%Y-%m-%d %H:%M UTC")
 
@@ -303,21 +305,28 @@ temps = []
 lats = []
 lons = []
 
-for station in root.findall('.//station'):
+for station in root.findall('station'):
     temp_elem = station.find('airtemperature')
-    if temp_elem is not None and temp_elem.text is not None and temp_elem.text.strip():
+    lat_elem = station.find('latitude')
+    lon_elem = station.find('longitude')
+    
+    if (temp_elem is not None and temp_elem.text is not None and temp_elem.text.strip() and
+        lat_elem is not None and lat_elem.text is not None and
+        lon_elem is not None and lon_elem.text is not None):
         try:
-            temp = float(temp_elem.text)
-            lat = float(station.find('latitude').text)
-            lon = float(station.find('longitude').text)
+            temp = float(temp_elem.text.strip())
+            lat = float(lat_elem.text.strip())
+            lon = float(lon_elem.text.strip())
             temps.append(temp)
             lats.append(lat)
             lons.append(lon)
-        except (ValueError, AttributeError):
+        except ValueError:
             continue
 
 if not temps:
-    raise ValueError("No valid temperature data found in XML")
+    raise ValueError("No valid temperature data found")
+
+print(f"Loaded {len(temps)} stations with temperature data")
 
 temps = np.array(temps)
 lats = np.array(lats)
@@ -339,7 +348,7 @@ ax = plt.axes(projection=ccrs.PlateCarree())
 ax.set_extent([21.5, 28.5, 57.5, 59.8], crs=ccrs.PlateCarree())
 
 # Filled contours
-cf = ax.contourf(grid_lon, grid_lat, grid_temp, levels=200, cmap=cmap, norm=norm, transform=ccrs.PlateCarree())
+ax.contourf(grid_lon, grid_lat, grid_temp, levels=200, cmap=cmap, norm=norm, transform=ccrs.PlateCarree())
 
 # Contour lines with labels
 cl = ax.contour(grid_lon, grid_lat, grid_temp, levels=np.arange(-40, 51, 2), colors='black', linewidths=0.7, transform=ccrs.PlateCarree())
@@ -357,4 +366,4 @@ plt.title(f"Estonia • Temperatura powietrza 2 m\n{title_time}\nMin: {min_temp:
 plt.savefig("temperature_map.png", dpi=200, bbox_inches='tight', facecolor='white')
 plt.close()
 
-print("Map generated successfully: temperature_map.png")
+print("Map generated successfully with all available stations!")
