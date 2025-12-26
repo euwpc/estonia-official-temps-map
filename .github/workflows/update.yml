@@ -2,15 +2,17 @@ name: Update Temperature Map
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Every hour
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git operations
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -22,19 +24,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests matplotlib cartopy scipy numpy
 
-      - name: Install proj for cartopy
-        run: sudo apt-get update && sudo apt-get install -y libproj-dev proj-data proj-bin libgeos-dev
+      - name: Install system dependencies for cartopy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libproj-dev proj-data proj-bin libgeos-dev libgdal-dev
 
-      - name: Run script
+      - name: Run update script
         run: python update_map.py
 
-      - name: Commit and push if changed
+      - name: Check if PNG was generated
+        run: ls -la temperature_map.png || echo "PNG not found!"
+
+      - name: Commit and push generated map
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
-          git add temperature_map.png
-          git commit -m "Update temperature map" || echo "No changes to commit"
-          git push origin main || echo "No changes to push"
+          git add temperature_map.png || echo "No PNG to add"
+          git commit -m "Update temperature map [$(date +'%Y-%m-%d %H:%M UTC')]" || echo "Nothing to commit"
+          git push origin main || echo "Nothing to push"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
