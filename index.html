@@ -5,242 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estonia • Temperatura powietrza 2 m</title>
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #fff; }
-        #container { position: relative; width: 100vw; height: 100vh; }
-        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        #title { position: absolute; top: 10px; left: 20px; font-size: 24px; font-weight: bold; color: #000; z-index: 10; }
-        #timestamp { position: absolute; top: 50px; left: 20px; font-size: 16px; color: #000; z-index: 10; }
-        #source { position: absolute; bottom: 10px; left: 20px; font-size: 12px; color: #000; z-index: 10; }
-        #source a { color: #000; }
-        .legend { position: absolute; top: 50%; right: 20px; transform: translateY(-50%); background: rgba(255,255,255,0.8); padding: 10px; border: 1px solid #ccc; z-index: 10; }
-        .legend canvas { margin-bottom: 10px; }
-        .legend div { text-align: center; font-size: 14px; }
+        body { font-family: Arial, sans-serif; text-align: center; background: #f0f0f0; margin: 20px; }
+        h1 { color: #333; }
+        img { max-width: 100%; border: 2px solid #333; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .download-btn { display: inline-block; margin: 20px; padding: 12px 24px; background: #0066cc; color: white; text-decoration: none; font-weight: bold; border-radius: 6px; }
+        .download-btn:hover { background: #0050a0; }
+        .footer { margin: 50px 0; color: #666; font-size: 0.9em; }
     </style>
 </head>
 <body>
-    <div id="container">
-        <canvas id="interpolation"></canvas>
-        <canvas id="borders"></canvas>
-        <canvas id="labels"></canvas>
-        <div id="title">Estonia • Temperatura powietrza 2 m</div>
-        <div id="timestamp">Loading data...</div>
-        <div id="source">Źródło: Estonian Environment Agency • <a href="https://ilmateenistus.ee" target="_blank">ilmateenistus.ee</a></div>
+    <h1>Estonia • Temperatura powietrza 2 m</h1>
+    <img id="map" src="temperature_map.png" alt="Temperature Map">
+    <br>
+    <a id="download" href="temperature_map.png" download="Estonia_temperature.png" class="download-btn">
+        Download Map (PNG)
+    </a>
 
-        <div class="legend">
-            <canvas id="legendCanvas" width="40" height="600"></canvas>
-            <div>-40 °C</div>
-            <div style="margin-top: 260px;">0 °C</div>
-            <div style="margin-top: 240px;">50 °C</div>
-        </div>
+    <div class="footer">
+        <p>Updated automatically every hour via GitHub Actions</p>
+        <p>Source: Estonian Environment Agency • <a href="https://ilmateenistus.ee">ilmateenistus.ee</a></p>
     </div>
 
     <script>
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
-        const dataUrl = 'https://ilmateenistus.ee/ilma_andmed/xml/observations.php';
-
-        const colorStops = [
-            {temp: -40, color: '#ff6eff'}, {temp: -38, color: '#ff46f8'}, {temp: -36, color: '#f627eb'}, {temp: -35, color: '#e522de'}, {temp: -33, color: '#d41dd1'},
-            {temp: -30, color: '#c318c4'}, {temp: -29, color: '#b414b9'}, {temp: -28, color: '#a510ae'}, {temp: -27, color: '#960ca3'}, {temp: -26, color: '#870898'},
-            {temp: -25, color: '#78048d'}, {temp: -24, color: '#64007f'}, {temp: -23, color: '#57007f'}, {temp: -22, color: '#4b007f'}, {temp: -21, color: '#3e007f'},
-            {temp: -20, color: '#32007f'}, {temp: -19, color: '#00287f'}, {temp: -18, color: '#00327f'}, {temp: -17, color: '#003c7f'}, {temp: -16, color: '#00467f'},
-            {temp: -15, color: '#00528f'}, {temp: -14, color: '#0062af'}, {temp: -13, color: '#0072cf'}, {temp: -12, color: '#0082ef'}, {temp: -11, color: '#1392ff'},
-            {temp: -10, color: '#259aff'}, {temp: -9, color: '#49acff'}, {temp: -8, color: '#5bb4ff'}, {temp: -7, color: '#6dbcff'}, {temp: -6, color: '#7fc4ff'},
-            {temp: -5, color: '#91ccff'}, {temp: -4, color: '#9ad0ff'}, {temp: -3, color: '#a3d4ff'}, {temp: -2, color: '#b5dcff'}, {temp: -1, color: '#c7e4ff'},
-            {temp: 0, color: '#d9ecff'}, {temp: 1, color: '#b1f1d6'}, {temp: 2, color: '#95dfbc'}, {temp: 3, color: '#87d3ab'}, {temp: 4, color: '#62af88'},
-            {temp: 5, color: '#4a9775'}, {temp: 6, color: '#07a127'}, {temp: 7, color: '#08b30f'}, {temp: 8, color: '#21bb0e'}, {temp: 9, color: '#39c20c'},
-            {temp: 10, color: '#52ca0b'}, {temp: 11, color: '#84d908'}, {temp: 12, color: '#9ce106'}, {temp: 13, color: '#b5e805'}, {temp: 14, color: '#cef003'},
-            {temp: 15, color: '#e6f702'}, {temp: 16, color: '#f3fb01'}, {temp: 17, color: '#ebe816'}, {temp: 18, color: '#f4d90b'}, {temp: 19, color: '#f4cb0b'},
-            {temp: 20, color: '#f4bd0b'}, {temp: 21, color: '#f4a20b'}, {temp: 22, color: '#f4880b'}, {temp: 23, color: '#f47a0b'}, {temp: 24, color: '#f46d0b'},
-            {temp: 25, color: '#f4520b'}, {temp: 26, color: '#e83709'}, {temp: 27, color: '#dc2708'}, {temp: 28, color: '#c41a0a'}, {temp: 29, color: '#ba130f'},
-            {temp: 30, color: '#af0f14'}, {temp: 31, color: '#8c0000'}, {temp: 32, color: '#780000'}, {temp: 33, color: '#640000'}, {temp: 34, color: '#8c3232'},
-            {temp: 35, color: '#b46464'}, {temp: 36, color: '#c87878'}, {temp: 37, color: '#f0a0a0'}, {temp: 38, color: '#ffb4b4'}, {temp: 39, color: '#ffc8c8'},
-            {temp: 40, color: '#ffdcdc'}, {temp: 42, color: '#fff0f0'}, {temp: 44, color: '#e2e2e2'}, {temp: 45, color: '#c5c5c5'}, {temp: 47, color: '#a8a8a8'},
-            {temp: 49, color: '#8a8a8a'}, {temp: 50, color: '#6d6d6d'}
-        ];
-
-        function getColor(temp) {
-            if (temp <= colorStops[0].temp) return colorStops[0].color;
-            if (temp >= colorStops[colorStops.length - 1].temp) return colorStops[colorStops.length - 1].color;
-            for (let i = 0; i < colorStops.length - 1; i++) {
-                const low = colorStops[i];
-                const high = colorStops[i + 1];
-                if (temp >= low.temp && temp < high.temp) {
-                    const ratio = (temp - low.temp) / (high.temp - low.temp);
-                    return interpolateColor(low.color, high.color, ratio);
-                }
-            }
-            return '#6d6d6d';
-        }
-
-        function interpolateColor(c1, c2, ratio) {
-            const r1 = parseInt(c1.slice(1,3),16), g1 = parseInt(c1.slice(3,5),16), b1 = parseInt(c1.slice(5,7),16);
-            const r2 = parseInt(c2.slice(1,3),16), g2 = parseInt(c2.slice(3,5),16), b2 = parseInt(c2.slice(5,7),16);
-            const r = Math.round(r1 + ratio * (r2 - r1));
-            const g = Math.round(g1 + ratio * (g2 - g1));
-            const b = Math.round(b1 + ratio * (b2 - b1));
-            return `rgb(${r},${g},${b})`;
-        }
-
-        function drawLegend() {
-            const canvas = document.getElementById('legendCanvas');
-            const ctx = canvas.getContext('2d');
-            const height = canvas.height;
-            for (let y = 0; y < height; y++) {
-                const temp = -40 + (y / height) * 90;
-                ctx.fillStyle = getColor(temp);
-                ctx.fillRect(0, height - y - 1, 40, 1);
-            }
-        }
-
-        const interpCanvas = document.getElementById('interpolation');
-        const ctx = interpCanvas.getContext('2d');
-        const bordersCanvas = document.getElementById('borders');
-        const bctx = bordersCanvas.getContext('2d');
-        const labelsCanvas = document.getElementById('labels');
-        const lctx = labelsCanvas.getContext('2d');
-
-        const minLat = 57.5, maxLat = 59.8;
-        const minLon = 21.5, maxLon = 28.5;
-
-        function project(lat, lon) {
-            const x = (lon - minLon) / (maxLon - minLon) * interpCanvas.width;
-            const y = (1 - (lat - minLat) / (maxLat - minLat)) * interpCanvas.height;
-            return [x, y];
-        }
-
-        // Detailed Estonia border from Natural Earth (simplified high-detail polygon including major islands)
-        const estoniaBorder = [
-            [22.5,58.5],[23,58.8],[23.5,59],[24,59.4],[24.5,59.5],[25,59.5],[25.5,59.4],[26,59.3],[26.5,59.2],[27,59.1],[27.5,59],[28,58.8],[28.1,58.5],[28,58],[27.8,57.8],[27.6,57.6],[27.4,57.5],[27,57.5],[26.5,57.5],[26,57.6],[25.5,57.7],[25,57.8],[24.5,57.8],[24,57.7],[23.5,57.6],[23,57.5],[22.5,57.5],[22,57.6],[21.8,57.8],[21.7,58],[21.8,58.2],[22,58.4],[22.5,58.5]
-            // This is a good approximation; for ultra-precise, use a full Natural Earth extract (the code supports it if you paste the full array).
-        ];
-
-        function drawBorders() {
-            bctx.clearRect(0, 0, bordersCanvas.width, bordersCanvas.height);
-            bctx.strokeStyle = '#000';
-            bctx.lineWidth = 3;
-            bctx.beginPath();
-            estoniaBorder.forEach((pt, i) => {
-                const [x, y] = project(pt[1], pt[0]); // lat, lon
-                if (i === 0) bctx.moveTo(x, y);
-                else bctx.lineTo(x, y);
-            });
-            bctx.closePath();
-            bctx.stroke();
-        }
-
-        function isInsideEstonia(x, y) {
-            let inside = false;
-            for (let i = 0, j = estoniaBorder.length - 1; i < estoniaBorder.length; j = i++) {
-                const xi = project(estoniaBorder[i][1], estoniaBorder[i][0])[0];
-                const yi = project(estoniaBorder[i][1], estoniaBorder[i][0])[1];
-                const xj = project(estoniaBorder[j][1], estoniaBorder[j][0])[0];
-                const yj = project(estoniaBorder[j][1], estoniaBorder[j][0])[1];
-                const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-                if (intersect) inside = !inside;
-            }
-            return inside;
-        }
-
-        function resize() {
-            const rect = document.getElementById('container').getBoundingClientRect();
-            interpCanvas.width = bordersCanvas.width = labelsCanvas.width = rect.width;
-            interpCanvas.height = bordersCanvas.height = labelsCanvas.height = rect.height;
-            drawLegend();
-            drawBorders();
-        }
-        window.addEventListener('resize', resize);
-        resize();
-        drawLegend();
-
-        function interpolateIDW(stations, width, height, power = 1) {
-            const imageData = ctx.createImageData(width, height);
-            const data = imageData.data;
-            const step = 4;
-
-            for (let y = 0; y < height; y += step) {
-                for (let x = 0; x < width; x += step) {
-                    if (!isInsideEstonia(x, y)) continue;
-
-                    let totalWeight = 0;
-                    let weightedTemp = 0;
-
-                    stations.forEach(st => {
-                        const dx = x - st.px;
-                        const dy = y - st.py;
-                        const dist = Math.sqrt(dx*dx + dy*dy) + 0.001;
-                        const weight = 1 / Math.pow(dist, power);
-                        weightedTemp += st.temp * weight;
-                        totalWeight += weight;
-                    });
-
-                    const temp = totalWeight > 0 ? weightedTemp / totalWeight : 0;
-                    const color = getColor(temp);
-                    const rgb = color.match(/\d+/g).map(Number);
-
-                    for (let dy = 0; dy < step; dy++) {
-                        for (let dx = 0; dx < step; dx++) {
-                            if (x + dx < width && y + dy < height && isInsideEstonia(x + dx, y + dy)) {
-                                const i = ((y + dy) * width + (x + dx)) * 4;
-                                data[i] = rgb[0];
-                                data[i+1] = rgb[1];
-                                data[i+2] = rgb[2];
-                                data[i+3] = 255;
-                            }
-                        }
-                    }
-                }
-            }
-            ctx.putImageData(imageData, 0, 0);
-        }
-
-        fetch(proxyUrl + encodeURIComponent(dataUrl))
-            .then(r => r.text())
-            .then(xmlText => {
-                const parser = new DOMParser();
-                const xml = parser.parseFromString(xmlText, "text/xml");
-                const obs = xml.querySelector('observations');
-                const ts = parseInt(obs.getAttribute('timestamp')) * 1000;
-                const date = new Date(ts);
-                document.getElementById('timestamp').textContent = 
-                    date.toUTCString().replace('GMT', 'UTC');
-
-                const stations = [];
-                const labelData = [];
-
-                xml.querySelectorAll('station').forEach(st => {
-                    const lat = parseFloat(st.querySelector('latitude')?.textContent);
-                    const lon = parseFloat(st.querySelector('longitude')?.textContent);
-                    const tempStr = st.querySelector('airtemperature')?.textContent;
-                    const temp = tempStr ? parseFloat(tempStr) : NaN;
-
-                    if (!isNaN(lat) && !isNaN(lon) && !isNaN(temp)) {
-                        const [px, py] = project(lat, lon);
-                        stations.push({px, py, temp});
-                        labelData.push({x: px, y: py, temp: temp.toFixed(1)});
-                    }
-                });
-
-                ctx.fillStyle = '#f0f0f0';
-                ctx.fillRect(0, 0, interpCanvas.width, interpCanvas.height);
-                interpolateIDW(stations, interpCanvas.width, interpCanvas.height);
-                drawBorders();
-
-                lctx.font = 'bold 14px Arial';
-                lctx.textAlign = 'center';
-                lctx.textBaseline = 'middle';
-                lctx.fillStyle = '#000';
-                lctx.strokeStyle = '#fff';
-                lctx.lineWidth = 3;
-
-                labelData.forEach(ld => {
-                    lctx.strokeText(ld.temp, ld.x, ld.y);
-                    lctx.fillText(ld.temp, ld.x, ld.y);
-                });
-            })
-            .catch(err => {
-                document.getElementById('timestamp').textContent = 'Error loading data';
-                console.error(err);
-            });
+        // Cache-bust to always show latest
+        window.onload = () => {
+            const img = document.getElementById('map');
+            img.src = 'temperature_map.png?ts=' + new Date().getTime();
+        };
     </script>
 </body>
 </html>
