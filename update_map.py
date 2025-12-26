@@ -26,7 +26,7 @@ def parse_qml_colormap(qml_content, vmin, vmax):
     colors = [c[1] for c in items]
     return ListedColormap(colors), Normalize(vmin=vmin, vmax=vmax)
 
-# Your full QML XML as a string
+# Full QML XML content embedded
 qml_content = """<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
 <qgis styleCategories="AllStyleCategories" maxScale="0" hasScaleBasedVisibilityFlag="0" autoRefreshMode="Disabled" autoRefreshTime="0" version="3.40.6-Bratislava" minScale="1e+08">
   <flags>
@@ -283,7 +283,73 @@ qml_content = """<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
 
 cmap, norm = parse_qml_colormap(qml_content, vmin=-40, vmax=50)
 
-# Fetch data and generate map (rest of the code from the previous version)
-# ... (keep the fetch, interpolation, plotting, borders, save part unchanged)
+# Fetch latest observations
+url = 'https://ilmateenistus.ee/ilma_andmed/xml/observations.php'
+response = requests.get(url)
+response.raise_for_status()
+root = ET.fromstring(response.content)
 
-print("Map generated with your exact custom color ramp")
+obs = root.find('observations')
+timestamp = int(obs.get('timestamp'))
+dt = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
+title_time = dt.strftime("%Y-%m-%d %H:%M UTC")
+
+temps = []
+lats = []
+lons = []
+
+for station in root.findall('.//station'):
+    temp_text = station.find('airtemperature')
+    if temp_text is not None and temp_text.text:
+        try:
+            temp = float(temp_text.text)
+            lat = float(station.find('latitude').text)
+            lon = float(station.find('longitude').text)
+            temps.append(temp)
+            lats.append(lat)
+            lons.append(lon)
+        except ValueError:
+            continue
+
+if not temps:
+    raise ValueError("No valid temperature data found")
+
+temps = np.array(temps)
+lats = np.array(lats)
+lons = np.array(lons)
+
+min_temp = np.min(temps)
+max_temp = np.max(temps)
+
+# Interpolation grid
+grid_lon = np.linspace(np.min(lons) - 0.1, np.max(lons) + 0.1, 800)
+grid_lat = np.linspace(np.min(lats) - 0.1, np.max(lats) + 0.1, 1000)
+grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
+
+grid_temp = griddata((lons, lats), temps, (grid_x, grid_y), method='linear')
+
+# Plot
+fig = plt.figure(figsize=(12, 14))
+ax = plt.axes(projection=ccrs.PlateCarree())
+ax.set_extent([21.5, 28.5, 57.5, 59.8], crs=ccrs.PlateCarree())
+
+# Filled contours
+cf = ax.contourf(grid_lon, grid_lat, grid_temp, levels=200, cmap=cmap, norm=norm, transform=ccrs.PlateCarree())
+
+# Contour lines with labels
+cl = ax.contour(grid_lon, grid_lat, grid_temp, levels=np.arange(-40, 51, 2), colors='black', linewidths=0.7, transform=ccrs.PlateCarree())
+ax.clabel(cl, inline=True, fontsize=9, fmt='%d')
+
+# Borders and features
+ax.add_feature(cfeature.BORDERS, linewidth=1.5)
+ax.add_feature(cfeature.COASTLINE, linewidth=1.0)
+ax.add_feature(cfeature.STATES, linewidth=0.8, edgecolor='gray')
+
+ax.gridlines(draw_labels=True)
+
+plt.title(f"Estonia • Temperatura powietrza 2 m\n{title_time}\nMin: {min_temp:.1f} °C | Max: {max_temp:.1f} °C", fontsize=16)
+
+plt.savefig("temperature_map.png", dpi=200, bbox_inches='tight', facecolor='white')
+plt.close()
+
+print("Map generated successfully: temperature_map.png")
