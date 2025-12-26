@@ -289,7 +289,12 @@ response = requests.get(url)
 response.raise_for_status()
 root = ET.fromstring(response.content)
 
-obs = root.find('observations')
+# Robust timestamp extraction
+obs = root.find('observations') or root.find('.//observations')
+if obs is None:
+    raise ValueError("No <observations> tag found in XML")
+if obs.get('timestamp') is None:
+    raise ValueError("No timestamp attribute in observations")
 timestamp = int(obs.get('timestamp'))
 dt = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
 title_time = dt.strftime("%Y-%m-%d %H:%M UTC")
@@ -299,20 +304,20 @@ lats = []
 lons = []
 
 for station in root.findall('.//station'):
-    temp_text = station.find('airtemperature')
-    if temp_text is not None and temp_text.text:
+    temp_elem = station.find('airtemperature')
+    if temp_elem is not None and temp_elem.text is not None and temp_elem.text.strip():
         try:
-            temp = float(temp_text.text)
+            temp = float(temp_elem.text)
             lat = float(station.find('latitude').text)
             lon = float(station.find('longitude').text)
             temps.append(temp)
             lats.append(lat)
             lons.append(lon)
-        except ValueError:
+        except (ValueError, AttributeError):
             continue
 
 if not temps:
-    raise ValueError("No valid temperature data found")
+    raise ValueError("No valid temperature data found in XML")
 
 temps = np.array(temps)
 lats = np.array(lats)
