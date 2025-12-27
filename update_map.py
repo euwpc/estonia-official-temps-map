@@ -2,9 +2,10 @@ import requests
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as patheffects
+from matplotlib.colorbar import ColorbarBase
+from matplotlib.colors import Normalize
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-from matplotlib.colors import ListedColormap, Normalize
 from scipy.interpolate import griddata
 import numpy as np
 import datetime
@@ -322,23 +323,25 @@ for station in root.findall('station'):
     lat_elem = station.find('latitude')
     lon_elem = station.find('longitude')
     
-    if (lat_elem is not None and lat_elem.text and
-        lon_elem is not None and lon_elem.text):
+    if (lat_elem is not None and lat_elem.text is not None and lat_elem.text.strip() and
+        lon_elem is not None and lon_elem.text is not None and lon_elem.text.strip()):
         try:
             lat = float(lat_elem.text.strip())
             lon = float(lon_elem.text.strip())
             lats.append(lat)
             lons.append(lon)
             
-            if temp_elem is not None and temp_elem.text and temp_elem.text.strip():
-                temp_values.append(float(temp_elem.text.strip()))
-            else:
-                temp_values.append(np.nan)
-                
-            if gust_elem is not None and gust_elem.text and gust_elem.text.strip():
-                gust_values.append(float(gust_elem.text.strip()))
-            else:
-                gust_values.append(np.nan)
+            # Temperature
+            temp_val = np.nan
+            if temp_elem is not None and temp_elem.text is not None and temp_elem.text.strip():
+                temp_val = float(temp_elem.text.strip())
+            temp_values.append(temp_val)
+            
+            # Wind gust
+            gust_val = np.nan
+            if gust_elem is not None and gust_elem.text is not None and gust_elem.text.strip():
+                gust_val = float(gust_elem.text.strip())
+            gust_values.append(gust_val)
                 
         except ValueError:
             continue
@@ -347,6 +350,8 @@ if not lats:
     raise ValueError("No valid stations found")
 
 print(f"Loaded {len(lats)} stations")
+print(f"Temperature valid: {np.sum(~np.isnan(temp_values))}")
+print(f"Wind gust valid: {np.sum(~np.isnan(gust_values))}")
 
 lats = np.array(lats)
 lons = np.array(lons)
@@ -363,34 +368,49 @@ grid_lon = np.linspace(np.min(lons) - 0.03, np.max(lons) + 0.03, num_lon)
 grid_lat = np.linspace(np.min(lats) - 0.03, np.max(lats) + 0.03, num_lat)
 grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
 
-grid_temp = griddata((lons, lats), temp_values, (grid_x, grid_y), method='cubic')
-grid_gust = griddata((lons, lats), gust_values, (grid_x, grid_y), method='cubic')
+# Interpolate with fallback to 'nearest' for sparse data
+interp_method = 'cubic'
+if np.sum(~np.isnan(temp_values)) < 15:
+    interp_method = 'nearest'
+grid_temp = griddata((lons, lats), temp_values, (grid_x, grid_y), method=interp_method)
 
-# Generate both maps
+interp_method = 'cubic'
+if np.sum(~np.isnan(gust_values)) < 15:
+    interp_method = 'nearest'
+grid_gust = griddata((lons, lats), gust_values, (grid_x, grid_y), method=interp_method)
+
+# Generate maps with colorbar
 for mode in ['temperature', 'wind_gust']:
-    fig = plt.figure(figsize=(18, 20))
+    fig = plt.figure(figsize=(20, 20))
     ax = plt.axes(projection=ccrs.PlateCarree())
     ax.set_extent([21.3, 28.7, 57.3, 60.0], crs=ccrs.PlateCarree())
 
     if mode == 'temperature':
-        cf = ax.contourf(grid_lon, grid_lat, grid_temp, levels=500, cmap=temp_cmap, norm=temp_norm, transform=ccrs.PlateCarree())
+        if np.all(np.isnan(grid_temp)):
+            print("No temperature data — skipping map")
+            plt.close(fig)
+            continue
+        cf = ax.contourf(grid_lon, grid_lat, grid_temp, levels=500, cmap=temp_cmap, norm=temp_norm, transform=ccrs.PlateCarree(), extend='both')
         min_val = np.nanmin(temp_values)
         max_val = np.nanmax(temp_values)
         unit = "°C"
         title = f"Estonia • Temperatura powietrza 2 m\n{title_time}\nMin: {min_val:.1f}{unit} | Max: {max_val:.1f}{unit}"
         values = temp_values
+        current_cmap = temp_cmap
+        current_norm = temp_norm
     else:
-        # Skip wind map if no gust data
-        if np.all(np.isnan(gust_values)):
-            print("No wind gust data — skipping wind map")
-            plt.close()
+        if np.all(np.isnan(grid_gust)):
+            print("No wind gust data — skipping wind_gust_map.png")
+            plt.close(fig)
             continue
-        cf = ax.contourf(grid_lon, grid_lat, grid_gust, levels=500, cmap=wind_cmap, norm=wind_norm, transform=ccrs.PlateCarree())
+        cf = ax.contourf(grid_lon, grid_lat, grid_gust, levels=500, cmap=wind_cmap, norm=wind_norm, transform=ccrs.PlateCarree(), extend='both')
         min_val = np.nanmin(gust_values)
         max_val = np.nanmax(gust_values)
         unit = "m/s"
         title = f"Estonia • Tuuleiilid (wind gusts)\n{title_time}\nMin: {min_val:.1f}{unit} | Max: {max_val:.1f}{unit}"
         values = gust_values
+        current_cmap = wind_cmap
+        current_norm = wind_norm
 
     # Station labels
     for lon, lat, val in zip(lons, lats, values):
@@ -406,11 +426,17 @@ for mode in ['temperature', 'wind_gust']:
 
     ax.gridlines(draw_labels=True, linewidth=0.6, color='gray', alpha=0.6, linestyle='--')
 
-    plt.title(title, fontsize=20)
+    plt.title(title, fontsize=20, pad=20)
+
+    # Colorbar on the right
+    cax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    cb = ColorbarBase(cax, cmap=current_cmap, norm=current_norm, orientation='vertical', extend='both')
+    cb.set_label(unit, fontsize=14)
+    cb.ax.tick_params(labelsize=12)
 
     filename = "temperature_map.png" if mode == 'temperature' else "wind_gust_map.png"
     plt.savefig(filename, dpi=400, bbox_inches='tight', facecolor='white')
-    plt.close()
-    print(f"{filename} generated successfully!")
+    plt.close(fig)
+    print(f"{filename} generated successfully with colorbar!")
 
 print("Maps update complete!")
