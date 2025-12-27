@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as patheffects
 from matplotlib.colorbar import ColorbarBase
-from matplotlib.colors import Normalize
+from matplotlib.colors import ListedColormap, Normalize  # <-- Fixed: imported here
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from scipy.interpolate import griddata
