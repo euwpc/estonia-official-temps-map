@@ -284,7 +284,7 @@ qml_content = """<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
 
 temp_cmap, temp_norm = parse_qml_colormap(qml_content, vmin=-40, vmax=50)
 
-# Wind gust color map (professional Beaufort-like: white/light blue → dark red)
+# Wind gust color map
 wind_colors = [
     '#ffffff', '#ccffff', '#99ccff', '#66ccff', '#33ccff', '#00ccff',
     '#00cccc', '#00cc99', '#00cc66', '#00cc33', '#00cc00',
@@ -292,7 +292,7 @@ wind_colors = [
     '#ff3300', '#ff0000', '#cc0000', '#990000'
 ]
 wind_cmap = ListedColormap(wind_colors)
-wind_norm = Normalize(vmin=0, vmax=40)  # Up to 40 m/s for strong storms
+wind_norm = Normalize(vmin=0, vmax=40)
 
 # Fetch data
 url = 'https://ilmateenistus.ee/ilma_andmed/xml/observations.php'
@@ -311,7 +311,6 @@ timestamp = int(timestamp_str)
 dt = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
 title_time = dt.strftime("%Y-%m-%d %H:%M UTC")
 
-# Collect data for both fields
 temp_values = []
 gust_values = []
 lats = []
@@ -319,7 +318,7 @@ lons = []
 
 for station in root.findall('station'):
     temp_elem = station.find('airtemperature')
-    gust_elem = station.find('windgust')  # windgust in m/s
+    gust_elem = station.find('windgust')
     lat_elem = station.find('latitude')
     lon_elem = station.find('longitude')
     
@@ -331,13 +330,11 @@ for station in root.findall('station'):
             lats.append(lat)
             lons.append(lon)
             
-            # Temperature (fallback to nan if missing)
             if temp_elem is not None and temp_elem.text and temp_elem.text.strip():
                 temp_values.append(float(temp_elem.text.strip()))
             else:
                 temp_values.append(np.nan)
                 
-            # Wind gust (fallback to nan if missing)
             if gust_elem is not None and gust_elem.text and gust_elem.text.strip():
                 gust_values.append(float(gust_elem.text.strip()))
             else:
@@ -356,7 +353,7 @@ lons = np.array(lons)
 temp_values = np.array(temp_values)
 gust_values = np.array(gust_values)
 
-# Common ultra-high-resolution grid
+# High-resolution grid
 lon_range = np.max(lons) - np.min(lons)
 lat_range = np.max(lats) - np.min(lats)
 num_lon = int(lon_range / 0.0005) + 200
@@ -366,7 +363,6 @@ grid_lon = np.linspace(np.min(lons) - 0.03, np.max(lons) + 0.03, num_lon)
 grid_lat = np.linspace(np.min(lats) - 0.03, np.max(lats) + 0.03, num_lat)
 grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
 
-# Interpolate both
 grid_temp = griddata((lons, lats), temp_values, (grid_x, grid_y), method='cubic')
 grid_gust = griddata((lons, lats), gust_values, (grid_x, grid_y), method='cubic')
 
@@ -384,6 +380,11 @@ for mode in ['temperature', 'wind_gust']:
         title = f"Estonia • Temperatura powietrza 2 m\n{title_time}\nMin: {min_val:.1f}{unit} | Max: {max_val:.1f}{unit}"
         values = temp_values
     else:
+        # Skip wind map if no gust data
+        if np.all(np.isnan(gust_values)):
+            print("No wind gust data — skipping wind map")
+            plt.close()
+            continue
         cf = ax.contourf(grid_lon, grid_lat, grid_gust, levels=500, cmap=wind_cmap, norm=wind_norm, transform=ccrs.PlateCarree())
         min_val = np.nanmin(gust_values)
         max_val = np.nanmax(gust_values)
@@ -391,14 +392,14 @@ for mode in ['temperature', 'wind_gust']:
         title = f"Estonia • Tuuleiilid (wind gusts)\n{title_time}\nMin: {min_val:.1f}{unit} | Max: {max_val:.1f}{unit}"
         values = gust_values
 
-    # Station value labels with strong white halo
+    # Station labels
     for lon, lat, val in zip(lons, lats, values):
         if not np.isnan(val):
             text = ax.text(lon, lat, f'{val:.1f}', fontsize=9, ha='center', va='center',
                            transform=ccrs.PlateCarree(), color='black', weight='bold')
             text.set_path_effects([patheffects.withStroke(linewidth=4, foreground='white')])
 
-    # Strong borders
+    # Borders
     ax.add_feature(cfeature.BORDERS, linewidth=1.8, edgecolor='black')
     ax.add_feature(cfeature.COASTLINE, linewidth=1.2, edgecolor='black')
     ax.add_feature(cfeature.STATES, linewidth=1.0, edgecolor='darkgray')
@@ -412,4 +413,4 @@ for mode in ['temperature', 'wind_gust']:
     plt.close()
     print(f"{filename} generated successfully!")
 
-print("Both high-resolution temperature and wind gust maps created!")
+print("Maps update complete!")
