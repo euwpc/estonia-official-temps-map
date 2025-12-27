@@ -335,42 +335,42 @@ lons = np.array(lons)
 min_temp = np.min(temps)
 max_temp = np.max(temps)
 
-# High-resolution grid (~100m)
+# Ultra-high-resolution grid for maximum detail
 lon_range = np.max(lons) - np.min(lons)
 lat_range = np.max(lats) - np.min(lats)
-num_lon = int(lon_range / 0.001) + 100
-num_lat = int(lat_range / 0.001) + 100
+num_lon = int(lon_range / 0.0005) + 200  # ~50m resolution
+num_lat = int(lat_range / 0.0005) + 200
 
-grid_lon = np.linspace(np.min(lons) - 0.02, np.max(lons) + 0.02, num_lon)
-grid_lat = np.linspace(np.min(lats) - 0.02, np.max(lats) + 0.02, num_lat)
+grid_lon = np.linspace(np.min(lons) - 0.03, np.max(lons) + 0.03, num_lon)
+grid_lat = np.linspace(np.min(lats) - 0.03, np.max(lats) + 0.03, num_lat)
 grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
 
-grid_temp = griddata((lons, lats), temps, (grid_x, grid_y), method='linear')
+grid_temp = griddata((lons, lats), temps, (grid_x, grid_y), method='cubic')  # cubic for smoother
 
 # Plot
-fig = plt.figure(figsize=(16, 18))
+fig = plt.figure(figsize=(18, 20))
 ax = plt.axes(projection=ccrs.PlateCarree())
-ax.set_extent([21.4, 28.6, 57.4, 59.9], crs=ccrs.PlateCarree())
+ax.set_extent([21.3, 28.7, 57.3, 60.0], crs=ccrs.PlateCarree())
 
-# Filled high-res color map only (no contour lines)
-ax.contourf(grid_lon, grid_lat, grid_temp, levels=300, cmap=cmap, norm=norm, transform=ccrs.PlateCarree())
+# High-detail filled color map
+ax.contourf(grid_lon, grid_lat, grid_temp, levels=500, cmap=cmap, norm=norm, transform=ccrs.PlateCarree())
 
-# Station temperature labels with white halo
+# Station temperature labels with strong white halo
 for lon, lat, temp in zip(lons, lats, temps):
-    text = ax.text(lon, lat, f'{temp:.1f}', fontsize=8, ha='center', va='center',
-                   transform=ccrs.PlateCarree(), color='black')
-    text.set_path_effects([patheffects.withStroke(linewidth=3, foreground='white')])
+    text = ax.text(lon, lat, f'{temp:.1f}', fontsize=9, ha='center', va='center',
+                   transform=ccrs.PlateCarree(), color='black', weight='bold')
+    text.set_path_effects([patheffects.withStroke(linewidth=4, foreground='white')])
 
 # Borders and features
-ax.add_feature(cfeature.BORDERS, linewidth=1.5)
-ax.add_feature(cfeature.COASTLINE, linewidth=1.0)
-ax.add_feature(cfeature.STATES, linewidth=0.8, edgecolor='gray')
+ax.add_feature(cfeature.BORDERS, linewidth=1.8, edgecolor='black')
+ax.add_feature(cfeature.COASTLINE, linewidth=1.2, edgecolor='black')
+ax.add_feature(cfeature.STATES, linewidth=1.0, edgecolor='darkgray')
 
-ax.gridlines(draw_labels=True, linewidth=0.5, color='gray', alpha=0.5)
+ax.gridlines(draw_labels=True, linewidth=0.6, color='gray', alpha=0.6, linestyle='--')
 
-plt.title(f"Estonia • Temperatura powietrza 2 m\n{title_time}\nMin: {min_temp:.1f} °C | Max: {max_temp:.1f} °C", fontsize=18)
+plt.title(f"Estonia • Temperatura powietrza 2 m\n{title_time}\nMin: {min_temp:.1f} °C | Max: {max_temp:.1f} °C", fontsize=20)
 
-plt.savefig("temperature_map.png", dpi=300, bbox_inches='tight', facecolor='white')
+plt.savefig("temperature_map.png", dpi=400, bbox_inches='tight', facecolor='white')
 plt.close()
 
-print("High-resolution map generated successfully (no contour lines, station labels only)!")
+print("Ultra-high-resolution map generated with all station labels!")
