@@ -1,10 +1,9 @@
-# .github/workflows/update.yml
 name: Update Weather Maps
 
 on:
   schedule:
     - cron: '*/10 * * * *'  # Every 10 minutes
-  workflow_dispatch:       # Manual trigger
+  workflow_dispatch:
 
 jobs:
   update:
@@ -12,8 +11,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -25,21 +22,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests matplotlib cartopy scipy numpy
 
-      - name: Install system dependencies for cartopy
+      - name: Install cartopy dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libproj-dev proj-data proj-bin libgeos-dev libgdal-dev
+          sudo apt-get install -y libproj-dev proj-data proj-bin libgeos-dev
 
       - name: Run update script
         run: python update_map.py
 
-      - name: Commit and push if maps changed
+      - name: Add changed files (only if they exist)
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
-          git add temperature_map.png wind_gust_map.png
-          git commit -m "Update maps [$(date +'%Y-%m-%d %H:%M UTC')]" || echo "No changes"
-          git push origin main || echo "Nothing to push"
+          git add temperature_map.png || echo "temperature_map.png not changed or missing"
+          git add wind_gust_map.png || echo "wind_gust_map.png not generated (no gust data)"
+
+      - name: Commit and push if changed
+        run: |
+          git commit -m "Update maps [$(date +'%Y-%m-%d %H:%M UTC')]" || echo "No changes to commit"
+          git push || echo "Nothing to push"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
