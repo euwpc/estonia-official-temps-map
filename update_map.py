@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as patheffects
 from matplotlib.colorbar import ColorbarBase
-from matplotlib.colors import ListedColormap, Normalize  # <-- Fixed: imported here
+from matplotlib.colors import ListedColormap, Normalize
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from scipy.interpolate import griddata
@@ -28,7 +28,7 @@ def parse_qml_colormap(qml_content, vmin, vmax):
     colors = [c[1] for c in items]
     return ListedColormap(colors), Normalize(vmin=vmin, vmax=vmax)
 
-# Your full QML XML for temperature
+# Your full QML XML for temperature (complete as provided)
 qml_content = """<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
 <qgis styleCategories="AllStyleCategories" maxScale="0" hasScaleBasedVisibilityFlag="0" autoRefreshMode="Disabled" autoRefreshTime="0" version="3.40.6-Bratislava" minScale="1e+08">
   <flags>
