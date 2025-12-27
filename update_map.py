@@ -318,7 +318,7 @@ lons = []
 
 for station in root.findall('station'):
     temp_elem = station.find('airtemperature')
-    gust_elem = station.find('windgust')
+    gust_elem = station.find('windspeedmax')
     lat_elem = station.find('latitude')
     lon_elem = station.find('longitude')
     
