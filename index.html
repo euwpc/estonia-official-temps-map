@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estonia • Weather Maps</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            background: #f0f0f0; 
+            margin: 20px; 
+        }
+        h1 { color: #333; }
+        .map-container {
+            position: relative;
+            max-width: 1200px;
+            margin: 20px auto;
+        }
+        img { 
+            max-width: 100%; 
+            border: 2px solid #333; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3); 
+        }
+        .switch-btn {
+            display: inline-block;
+            margin: 15px 10px;
+            padding: 12px 28px;
+            background: #0066cc;
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.1em;
+        }
+        .switch-btn:hover { background: #0050a0; }
+        .switch-btn.active {
+            background: #003366;
+            box-shadow: inset 0 3px 6px rgba(0,0,0,0.3);
+        }
+        .download-btn { 
+            display: inline-block; 
+            margin: 20px; 
+            padding: 12px 24px; 
+            background: #28a745; 
+            color: white; 
+            text-decoration: none; 
+            font-weight: bold; 
+            border-radius: 6px; 
+        }
+        .download-btn:hover { background: #218838; }
+        .footer { 
+            margin: 50px 0; 
+            color: #666; 
+            font-size: 0.9em; 
+        }
+        .loading {
+            font-style: italic;
+            color: #666;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Estonia • Weather Maps</h1>
+    
+    <div>
+        <button id="temp-btn" class="switch-btn active" onclick="switchMap('temperature')">Temperature</button>
+        <button id="gust-btn" class="switch-btn" onclick="switchMap('wind_gust')">Wind Gusts</button>
+    </div>
+
+    <div class="map-container">
+        <p class="loading" id="loading">Loading map...</p>
+        <img id="map" src="" alt="Weather Map" style="display:none;">
+    </div>
+
+    <a id="download" href="" download class="download-btn">
+        Download Current Map (PNG)
+    </a>
+
+    <div class="footer">
+        <p>Updated automatically every 10 minutes via GitHub Actions</p>
+        <p>Source: Estonian Environment Agency • <a href="https://ilmateenistus.ee">ilmateenistus.ee</a></p>
+    </div>
+
+    <script>
+        let currentMode = 'temperature';
+
+        function switchMap(mode) {
+            currentMode = mode;
+            
+            // Update buttons
+            document.getElementById('temp-btn').classList.toggle('active', mode === 'temperature');
+            document.getElementById('gust-btn').classList.toggle('active', mode === 'wind_gust');
+            
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('map').style.display = 'none';
+            
+            // Strong cache busting with timestamp + random
+            const cacheBust = Date.now() + Math.random().toString(36);
+            const filename = mode === 'temperature' ? 'temperature_map.png' : 'wind_gust_map.png';
+            
+            const img = document.getElementById('map');
+            img.src = filename + '?v=' + cacheBust;
+            
+            // Update download link
+            document.getElementById('download').href = filename + '?v=' + cacheBust;
+            
+            // When image loads
+            img.onload = () => {
+                document.getElementById('loading').style.display = 'none';
+                img.style.display = 'block';
+            };
+            
+            // Fallback if image fails
+            img.onerror = () => {
+                document.getElementById('loading').textContent = 'Map loading failed. Try refreshing the page.';
+            };
+        }
+
+        // Load temperature map on start
+        window.onload = () => switchMap('temperature');
+    </script>
+</body>
+</html>
