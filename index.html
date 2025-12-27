@@ -81,7 +81,7 @@
     </a>
 
     <div class="footer">
-        <p>Updated automatically every hour via GitHub Actions</p>
+        <p>Updated automatically every 10 minutes via GitHub Actions</p>
         <p>Source: Estonian Environment Agency • <a href="https://ilmateenistus.ee">ilmateenistus.ee</a></p>
     </div>
 
@@ -99,15 +99,15 @@
             document.getElementById('loading').style.display = 'block';
             document.getElementById('map').style.display = 'none';
             
-            // Cache-busting timestamp
-            const ts = new Date().getTime();
+            // Strong cache busting with timestamp + random
+            const cacheBust = Date.now() + Math.random().toString(36);
             const filename = mode === 'temperature' ? 'temperature_map.png' : 'wind_gust_map.png';
             
             const img = document.getElementById('map');
-            img.src = filename + '?ts=' + ts;
+            img.src = filename + '?v=' + cacheBust;
             
             // Update download link
-            document.getElementById('download').href = filename + '?ts=' + ts;
+            document.getElementById('download').href = filename + '?v=' + cacheBust;
             
             // When image loads
             img.onload = () => {
@@ -115,9 +115,9 @@
                 img.style.display = 'block';
             };
             
-            // Fallback if image fails (rare)
+            // Fallback if image fails
             img.onerror = () => {
-                document.getElementById('loading').textContent = 'Map loading failed. Try refreshing.';
+                document.getElementById('loading').textContent = 'Map loading failed. Try refreshing the page.';
             };
         }
 
