@@ -1,9 +1,10 @@
-name: Update Temperature Map
+# .github/workflows/update.yml
+name: Update Weather Maps
 
 on:
   schedule:
-    - cron: '0 * * * *'
-  workflow_dispatch:
+    - cron: '*/10 * * * *'  # Every 10 minutes
+  workflow_dispatch:       # Manual trigger
 
 jobs:
   update:
@@ -12,7 +13,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for git operations
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -32,15 +33,12 @@ jobs:
       - name: Run update script
         run: python update_map.py
 
-      - name: Check if PNG was generated
-        run: ls -la temperature_map.png || echo "PNG not found!"
-
-      - name: Commit and push generated map
+      - name: Commit and push if maps changed
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
-          git add temperature_map.png || echo "No PNG to add"
-          git commit -m "Update temperature map [$(date +'%Y-%m-%d %H:%M UTC')]" || echo "Nothing to commit"
+          git add temperature_map.png wind_gust_map.png
+          git commit -m "Update maps [$(date +'%Y-%m-%d %H:%M UTC')]" || echo "No changes"
           git push origin main || echo "Nothing to push"
 
       - name: Deploy to GitHub Pages
