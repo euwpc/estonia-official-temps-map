@@ -28,7 +28,7 @@ def parse_qml_colormap(qml_content, vmin, vmax):
     colors = [c[1] for c in items]
     return ListedColormap(colors), Normalize(vmin=vmin, vmax=vmax)
 
-# Your full QML XML for temperature (complete as provided)
+# Your full QML XML for temperature
 qml_content = """<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
 <qgis styleCategories="AllStyleCategories" maxScale="0" hasScaleBasedVisibilityFlag="0" autoRefreshMode="Disabled" autoRefreshTime="0" version="3.40.6-Bratislava" minScale="1e+08">
   <flags>
@@ -386,10 +386,6 @@ for mode in ['temperature', 'wind_gust']:
     ax.set_extent([21.3, 28.7, 57.3, 60.0], crs=ccrs.PlateCarree())
 
     if mode == 'temperature':
-        if np.all(np.isnan(grid_temp)):
-            print("No temperature data — skipping map")
-            plt.close(fig)
-            continue
         cf = ax.contourf(grid_lon, grid_lat, grid_temp, levels=500, cmap=temp_cmap, norm=temp_norm, transform=ccrs.PlateCarree(), extend='both')
         min_val = np.nanmin(temp_values)
         max_val = np.nanmax(temp_values)
@@ -399,10 +395,6 @@ for mode in ['temperature', 'wind_gust']:
         current_cmap = temp_cmap
         current_norm = temp_norm
     else:
-        if np.all(np.isnan(grid_gust)):
-            print("No wind gust data — skipping wind_gust_map.png")
-            plt.close(fig)
-            continue
         cf = ax.contourf(grid_lon, grid_lat, grid_gust, levels=500, cmap=wind_cmap, norm=wind_norm, transform=ccrs.PlateCarree(), extend='both')
         min_val = np.nanmin(gust_values)
         max_val = np.nanmax(gust_values)
