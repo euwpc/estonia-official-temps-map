@@ -12,7 +12,7 @@ import os
 
 plt.switch_backend('Agg')
 
-# Parse QML color ramp
+# Parse QML color ramp for temperature
 def parse_qml_colormap(qml_content, vmin, vmax):
     root = ET.fromstring(qml_content)
     items = []
@@ -27,7 +27,7 @@ def parse_qml_colormap(qml_content, vmin, vmax):
     colors = [c[1] for c in items]
     return ListedColormap(colors), Normalize(vmin=vmin, vmax=vmax)
 
-# Your full QML XML as a string
+# Your full QML XML for temperature
 qml_content = """<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
 <qgis styleCategories="AllStyleCategories" maxScale="0" hasScaleBasedVisibilityFlag="0" autoRefreshMode="Disabled" autoRefreshTime="0" version="3.40.6-Bratislava" minScale="1e+08">
   <flags>
@@ -282,9 +282,19 @@ qml_content = """<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
   <blendMode>0</blendMode>
 </qgis>"""
 
-cmap, norm = parse_qml_colormap(qml_content, vmin=-40, vmax=50)
+temp_cmap, temp_norm = parse_qml_colormap(qml_content, vmin=-40, vmax=50)
 
-# Fetch latest observations
+# Wind gust color map (professional Beaufort-like: white/light blue → dark red)
+wind_colors = [
+    '#ffffff', '#ccffff', '#99ccff', '#66ccff', '#33ccff', '#00ccff',
+    '#00cccc', '#00cc99', '#00cc66', '#00cc33', '#00cc00',
+    '#99cc00', '#cccc00', '#ffcc00', '#ff9900', '#ff6600',
+    '#ff3300', '#ff0000', '#cc0000', '#990000'
+]
+wind_cmap = ListedColormap(wind_colors)
+wind_norm = Normalize(vmin=0, vmax=40)  # Up to 40 m/s for strong storms
+
+# Fetch data
 url = 'https://ilmateenistus.ee/ilma_andmed/xml/observations.php'
 headers = {'User-Agent': 'Mozilla/5.0 (compatible; GitHubActions/1.0)'}
 response = requests.get(url, headers=headers)
@@ -296,81 +306,110 @@ if root.tag != 'observations':
 
 timestamp_str = root.get('timestamp')
 if not timestamp_str:
-    raise ValueError("No timestamp attribute found on <observations>")
+    raise ValueError("No timestamp attribute found")
 timestamp = int(timestamp_str)
 dt = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
 title_time = dt.strftime("%Y-%m-%d %H:%M UTC")
 
-temps = []
+# Collect data for both fields
+temp_values = []
+gust_values = []
 lats = []
 lons = []
 
 for station in root.findall('station'):
     temp_elem = station.find('airtemperature')
+    gust_elem = station.find('windgust')  # windgust in m/s
     lat_elem = station.find('latitude')
     lon_elem = station.find('longitude')
     
-    if (temp_elem is not None and temp_elem.text is not None and temp_elem.text.strip() and
-        lat_elem is not None and lat_elem.text is not None and
-        lon_elem is not None and lon_elem.text is not None):
+    if (lat_elem is not None and lat_elem.text and
+        lon_elem is not None and lon_elem.text):
         try:
-            temp = float(temp_elem.text.strip())
             lat = float(lat_elem.text.strip())
             lon = float(lon_elem.text.strip())
-            temps.append(temp)
             lats.append(lat)
             lons.append(lon)
+            
+            # Temperature (fallback to nan if missing)
+            if temp_elem is not None and temp_elem.text and temp_elem.text.strip():
+                temp_values.append(float(temp_elem.text.strip()))
+            else:
+                temp_values.append(np.nan)
+                
+            # Wind gust (fallback to nan if missing)
+            if gust_elem is not None and gust_elem.text and gust_elem.text.strip():
+                gust_values.append(float(gust_elem.text.strip()))
+            else:
+                gust_values.append(np.nan)
+                
         except ValueError:
             continue
 
-if not temps:
-    raise ValueError("No valid temperature data found")
+if not lats:
+    raise ValueError("No valid stations found")
 
-print(f"Loaded {len(temps)} stations with temperature data")
+print(f"Loaded {len(lats)} stations")
 
-temps = np.array(temps)
 lats = np.array(lats)
 lons = np.array(lons)
+temp_values = np.array(temp_values)
+gust_values = np.array(gust_values)
 
-min_temp = np.min(temps)
-max_temp = np.max(temps)
-
-# Ultra-high-resolution grid for maximum detail
+# Common ultra-high-resolution grid
 lon_range = np.max(lons) - np.min(lons)
 lat_range = np.max(lats) - np.min(lats)
-num_lon = int(lon_range / 0.0005) + 200  # ~50m resolution
+num_lon = int(lon_range / 0.0005) + 200
 num_lat = int(lat_range / 0.0005) + 200
 
 grid_lon = np.linspace(np.min(lons) - 0.03, np.max(lons) + 0.03, num_lon)
 grid_lat = np.linspace(np.min(lats) - 0.03, np.max(lats) + 0.03, num_lat)
 grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
 
-grid_temp = griddata((lons, lats), temps, (grid_x, grid_y), method='cubic')  # cubic for smoother
+# Interpolate both
+grid_temp = griddata((lons, lats), temp_values, (grid_x, grid_y), method='cubic')
+grid_gust = griddata((lons, lats), gust_values, (grid_x, grid_y), method='cubic')
 
-# Plot
-fig = plt.figure(figsize=(18, 20))
-ax = plt.axes(projection=ccrs.PlateCarree())
-ax.set_extent([21.3, 28.7, 57.3, 60.0], crs=ccrs.PlateCarree())
+# Generate both maps
+for mode in ['temperature', 'wind_gust']:
+    fig = plt.figure(figsize=(18, 20))
+    ax = plt.axes(projection=ccrs.PlateCarree())
+    ax.set_extent([21.3, 28.7, 57.3, 60.0], crs=ccrs.PlateCarree())
 
-# High-detail filled color map
-ax.contourf(grid_lon, grid_lat, grid_temp, levels=500, cmap=cmap, norm=norm, transform=ccrs.PlateCarree())
+    if mode == 'temperature':
+        cf = ax.contourf(grid_lon, grid_lat, grid_temp, levels=500, cmap=temp_cmap, norm=temp_norm, transform=ccrs.PlateCarree())
+        min_val = np.nanmin(temp_values)
+        max_val = np.nanmax(temp_values)
+        unit = "°C"
+        title = f"Estonia • Temperatura powietrza 2 m\n{title_time}\nMin: {min_val:.1f}{unit} | Max: {max_val:.1f}{unit}"
+        values = temp_values
+    else:
+        cf = ax.contourf(grid_lon, grid_lat, grid_gust, levels=500, cmap=wind_cmap, norm=wind_norm, transform=ccrs.PlateCarree())
+        min_val = np.nanmin(gust_values)
+        max_val = np.nanmax(gust_values)
+        unit = "m/s"
+        title = f"Estonia • Tuuleiilid (wind gusts)\n{title_time}\nMin: {min_val:.1f}{unit} | Max: {max_val:.1f}{unit}"
+        values = gust_values
 
-# Station temperature labels with strong white halo
-for lon, lat, temp in zip(lons, lats, temps):
-    text = ax.text(lon, lat, f'{temp:.1f}', fontsize=9, ha='center', va='center',
-                   transform=ccrs.PlateCarree(), color='black', weight='bold')
-    text.set_path_effects([patheffects.withStroke(linewidth=4, foreground='white')])
+    # Station value labels with strong white halo
+    for lon, lat, val in zip(lons, lats, values):
+        if not np.isnan(val):
+            text = ax.text(lon, lat, f'{val:.1f}', fontsize=9, ha='center', va='center',
+                           transform=ccrs.PlateCarree(), color='black', weight='bold')
+            text.set_path_effects([patheffects.withStroke(linewidth=4, foreground='white')])
 
-# Borders and features
-ax.add_feature(cfeature.BORDERS, linewidth=1.8, edgecolor='black')
-ax.add_feature(cfeature.COASTLINE, linewidth=1.2, edgecolor='black')
-ax.add_feature(cfeature.STATES, linewidth=1.0, edgecolor='darkgray')
+    # Strong borders
+    ax.add_feature(cfeature.BORDERS, linewidth=1.8, edgecolor='black')
+    ax.add_feature(cfeature.COASTLINE, linewidth=1.2, edgecolor='black')
+    ax.add_feature(cfeature.STATES, linewidth=1.0, edgecolor='darkgray')
 
-ax.gridlines(draw_labels=True, linewidth=0.6, color='gray', alpha=0.6, linestyle='--')
+    ax.gridlines(draw_labels=True, linewidth=0.6, color='gray', alpha=0.6, linestyle='--')
 
-plt.title(f"Estonia • Temperatura powietrza 2 m\n{title_time}\nMin: {min_temp:.1f} °C | Max: {max_temp:.1f} °C", fontsize=20)
+    plt.title(title, fontsize=20)
 
-plt.savefig("temperature_map.png", dpi=400, bbox_inches='tight', facecolor='white')
-plt.close()
+    filename = "temperature_map.png" if mode == 'temperature' else "wind_gust_map.png"
+    plt.savefig(filename, dpi=400, bbox_inches='tight', facecolor='white')
+    plt.close()
+    print(f"{filename} generated successfully!")
 
-print("Ultra-high-resolution map generated with all station labels!")
+print("Both high-resolution temperature and wind gust maps created!")
